@@ -60,26 +60,29 @@ than tripled heavy-degradation accuracy).
 
 land-records-poc/
 ├── backend/
-│ ├── main.py # FastAPI app — all endpoints, 7-stage pipeline orchestration
-│ ├── preprocess.py # Stage 1: deskew, denoise, binarize (+ recovery pass)
-│ ├── document_input.py # Legacy PDF → page images (PyMuPDF)
-│ ├── ocr_engine.py # Stage 3: Tesseract (eng+hin+tel)
-│ ├── handwriting_ocr.py # Stage 3: TrOCR, Devanagari fine-tune (opt-in)
-│ ├── hybrid_ocr.py # Confidence-gated routing between the two OCR engines
-│ ├── doc_classifier.py # Printed vs handwritten / doc-type detection
-│ ├── extract.py # Stage 4: field mapping + confidence scoring
-│ ├── validate.py # Stage 5: cross-validation against existing records
-│ ├── duplicate_detector.py # Exact + fuzzy duplicate detection
-│ ├── map_extractor.py # Cadastral/village map parcel extraction
-│ ├── gemini_chat.py # Grounded per-record chat assistant
-│ ├── models.py # Stage 7: SQLite schema + audit log
-│ └── requirements.txt
+│   ├── main.py               # FastAPI app — all endpoints, 7-stage pipeline orchestration
+│   ├── preprocess.py         # Stage 1: deskew, denoise, binarize (+ recovery pass)
+│   ├── document_input.py     # Legacy PDF → page images (PyMuPDF)
+│   ├── ocr_engine.py         # Stage 3: Tesseract (eng+hin+tel)
+│   ├── handwriting_ocr.py    # Stage 3: TrOCR, Devanagari fine-tune (opt-in)
+│   ├── hybrid_ocr.py         # Confidence-gated routing between the two OCR engines
+│   ├── doc_classifier.py     # Printed vs handwritten / doc-type detection
+│   ├── extract.py            # Stage 4: field mapping + confidence scoring
+│   ├── validate.py           # Stage 5: cross-validation against existing records
+│   ├── duplicate_detector.py # Exact + fuzzy duplicate detection
+│   ├── map_extractor.py      # Cadastral/village map parcel extraction
+│   ├── gemini_chat.py        # Grounded per-record chat assistant
+│   ├── models.py             # Stage 7: SQLite schema + audit log
+│   └── requirements.txt
 ├── frontend/
-│ └── index.html # Officer + Citizen UI: login, upload, review queue, dashboard, map
+│   └── index.html            # Officer + Citizen UI: login, upload, review queue, dashboard, map
 ├── scripts/
-│ ├── gen_data.py # Synthetic multilingual/handwritten-style sample generator
-│ └── evaluate.py # Batch accuracy evaluation
-└── data/sample_records/ # Generated sample scans + ground_truth.json
+│   ├── gen_data.py           # Synthetic multilingual/handwritten-style sample generator
+│   └── evaluate.py           # Batch accuracy evaluation
+└── data/
+    └── sample_records/
+        ├── Generated sample scans
+        └── ground_truth.json
 
 
 ## How to run it
