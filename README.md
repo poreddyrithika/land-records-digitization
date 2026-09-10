@@ -58,6 +58,9 @@ than tripled heavy-degradation accuracy).
 
 ## Project structure
 
+## Project Structure
+
+```text
 land-records-poc/
 ├── backend/
 │   ├── main.py               # FastAPI app — all endpoints, 7-stage pipeline orchestration
@@ -74,16 +77,19 @@ land-records-poc/
 │   ├── gemini_chat.py        # Grounded per-record chat assistant
 │   ├── models.py             # Stage 7: SQLite schema + audit log
 │   └── requirements.txt
+│
 ├── frontend/
 │   └── index.html            # Officer + Citizen UI: login, upload, review queue, dashboard, map
+│
 ├── scripts/
 │   ├── gen_data.py           # Synthetic multilingual/handwritten-style sample generator
 │   └── evaluate.py           # Batch accuracy evaluation
+│
 └── data/
     └── sample_records/
         ├── Generated sample scans
         └── ground_truth.json
-
+```
 
 ## How to run it
 
