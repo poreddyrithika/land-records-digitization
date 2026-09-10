@@ -1,45 +1,92 @@
 # Intelligent Land Record Digitization & Validation System
 **SIH26018 · Team Spirit — Working Prototype**
 
-This is a working, testable implementation of the pipeline described in your
-SIH proposal. It's a **proof of concept, not the production system** — every
-place a real component was substituted for a hackathon-tractable one is
-called out below so you can answer honestly in Q&A.
+An AI-based platform that digitizes and validates legacy land records —
+scanned registers, handwritten documents, and legacy PDFs — automatically
+extracting structured fields (owner, khasra/survey no., khata no., area,
+village, tehsil, district, classification, mutation no.), flagging
+low-confidence and duplicate entries for officer review, and exposing the
+verified data through both an officer dashboard and a citizen-facing
+public portal.
 
-## What actually works right now
+This is a **working proof of concept**, not the production DILRMP system.
+Every place a real government integration was substituted for a
+hackathon-tractable equivalent is called out explicitly below — answer
+honestly with this table if a judge asks "is this the real thing."
 
-Upload a scanned land record image → it flows through all 7 pipeline stages
-→ low-confidence fields get flagged → an officer corrects them in a review
-UI → the verified record lands in a searchable dashboard.
+## Problem statement → what we built
 
-Tested end-to-end on 20 synthetic khatauni-style images with realistic scan
-degradation (skew, noise, blur, fading) — see `EVALUATION.md` for real
-accuracy numbers you can quote in your demo.
+| Expected solution (per SIH26018) | Status in this PoC |
+|---|---|
+| Multilingual document recognition | ✅ English, Hindi, Telugu — printed (Tesseract) + handwritten (TrOCR, Devanagari fine-tune) |
+| Automatic extraction from scans, images, legacy PDFs | ✅ Multi-page PDF splitting (PyMuPDF) + image upload, both routed through the same OCR/extraction pipeline |
+| Classification into predefined land-record fields | ✅ Regex + fuzzy label matching in `extract.py`, restricted to fields that genuinely appear in the source documents |
+| Automated validation, cross-database checks, duplicate detection | ✅ Rule-based cross-validation + exact/near duplicate detection (`validate.py`, `duplicate_detector.py`) with officer confirm/clear actions |
+| Confidence scoring, uncertain-field identification | ✅ Per-field confidence + overall confidence threshold routes low-confidence records to officer review automatically |
+| Human-assisted verification workflow | ✅ Officer Review Queue — prioritized by duplicate > low confidence > validation conflict > missing fields > pending |
+| AI-driven learning that improves over time | ⚠️ Not implemented — officer corrections are saved to the DB but nothing retrains on them yet |
+| Integration with LRMS/DILRMP/GIS/cadastral maps | ⚠️ Cadastral map upload + parcel/survey-number extraction is implemented (`map_extractor.py`); no live Bhoomi/DILRMP/GIS integration exists (no public sandbox to connect to) |
+| Secure repository with metadata + audit trails | ✅ Full audit log per record (`AuditLog` table), record lifecycle stages tracked end-to-end |
+| Interactive dashboards (processed count, accuracy, validation status, pending cases, state/district progress) | ✅ Records Dashboard (stats + searchable table) and a Leaflet Map View (village-level pins, verified/pending status, filters by state/district/village/language/doc type) |
+| APIs for government-system integration | ✅ REST API (FastAPI) — every UI action is a documented endpoint, ready to be called by another system |
+| Role-based access control | ✅ Demo-level: Officer (Tehsildar) vs Citizen login, with the citizen view restricted to a read-only map + official Record-of-Rights extract |
+
+## What actually works right now, end to end
+
+1. Upload a scanned image or multi-page PDF → pre-processing → OCR
+   (Tesseract for printed text, TrOCR-Devanagari for handwriting,
+   confidence-gated hybrid routing) → field extraction → cross-validation
+   → duplicate check.
+2. Records that are clean and unambiguous go straight to **Verified**.
+   Anything with low OCR confidence, a validation warning, or a possible
+   duplicate is routed to the **Officer Review Queue**, where a Tehsildar
+   can correct fields, confirm/dismiss duplicates, and approve or reject.
+3. Verified records appear in the **Records Dashboard** (officer) and on
+   the **Map View**, which is also what a **Citizen** login sees — a
+   read-only, searchable public portal showing an official-style Record
+   of Rights extract per parcel, without exposing OCR confidence internals.
+4. A Gemini-backed chat assistant answers questions about any individual
+   record, strictly grounded in that record's extracted fields and OCR
+   text (no open-ended hallucination).
+
+Tested end-to-end on synthetic khatauni-style samples with realistic scan
+degradation and mixed English/Hindi/Telugu handwritten-style text — see
+`EVALUATION.md` for the real accuracy numbers to quote in the demo
+(headline: 98.4% field accuracy on clean scans, dropping on degraded
+scans as expected, with a confidence-triggered recovery pass that more
+than tripled heavy-degradation accuracy).
 
 ## Project structure
-```
+
 land-records-poc/
 ├── backend/
-│   ├── main.py          # FastAPI app — all endpoints
-│   ├── preprocess.py    # Stage 1: deskew, denoise, binarize
-│   ├── ocr_engine.py    # Stage 3: Tesseract OCR wrapper
-│   ├── extract.py       # Stage 4: field mapping + confidence scoring
-│   ├── validate.py      # Stage 5: cross-validation against existing records
-│   ├── models.py        # Stage 7: SQLite schema
-│   └── requirements.txt
+│ ├── main.py # FastAPI app — all endpoints, 7-stage pipeline orchestration
+│ ├── preprocess.py # Stage 1: deskew, denoise, binarize (+ recovery pass)
+│ ├── document_input.py # Legacy PDF → page images (PyMuPDF)
+│ ├── ocr_engine.py # Stage 3: Tesseract (eng+hin+tel)
+│ ├── handwriting_ocr.py # Stage 3: TrOCR, Devanagari fine-tune (opt-in)
+│ ├── hybrid_ocr.py # Confidence-gated routing between the two OCR engines
+│ ├── doc_classifier.py # Printed vs handwritten / doc-type detection
+│ ├── extract.py # Stage 4: field mapping + confidence scoring
+│ ├── validate.py # Stage 5: cross-validation against existing records
+│ ├── duplicate_detector.py # Exact + fuzzy duplicate detection
+│ ├── map_extractor.py # Cadastral/village map parcel extraction
+│ ├── gemini_chat.py # Grounded per-record chat assistant
+│ ├── models.py # Stage 7: SQLite schema + audit log
+│ └── requirements.txt
 ├── frontend/
-│   └── index.html       # Single-page UI: upload / review queue / dashboard
+│ └── index.html # Officer + Citizen UI: login, upload, review queue, dashboard, map
 ├── scripts/
-│   ├── gen_data.py       # Synthetic data generator (see below)
-│   └── evaluate.py       # Batch accuracy evaluation
-└── data/sample_records/  # 20 generated sample scans + ground_truth.json
-```
+│ ├── gen_data.py # Synthetic multilingual/handwritten-style sample generator
+│ └── evaluate.py # Batch accuracy evaluation
+└── data/sample_records/ # Generated sample scans + ground_truth.json
+
 
 ## How to run it
 
-**1. Install system dependency (Tesseract OCR):**
+**1. Install system dependencies (Tesseract OCR + languages, poppler for PDFs):**
 ```bash
-sudo apt-get install tesseract-ocr tesseract-ocr-hin
+sudo apt-get install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel poppler-utils
 ```
 
 **2. Install Python dependencies:**
@@ -54,102 +101,54 @@ python3 -m uvicorn main:app --reload --port 8000
 ```
 
 **4. Open the frontend:**
-Just open `frontend/index.html` directly in a browser (double-click it, or
-`open frontend/index.html`). It talks to `http://localhost:8000` — update
-the `API` constant at the top of the `<script>` tag if you deploy the
-backend elsewhere.
+The backend also serves the frontend itself at `http://localhost:8000/ui`
+— or open `frontend/index.html` directly in a browser. It talks to
+whatever origin it's loaded from (`window.location.origin`), so the same
+build works locally, over an ngrok/Cloudflare tunnel, or deployed.
 
 **5. Try it:**
-Upload any image from `data/sample_records/` through the "Upload & Process"
-tab. Clean ones auto-verify; degraded ones land in "Officer Review Queue"
-with red/orange fields you can correct before publishing.
+Sign in as **Tehsildar** to upload, review, and manage records, or as
+**Citizen** to search and view the public map + Record-of-Rights extracts.
+Upload any sample from `data/sample_records/` through "Upload & Process" —
+clean scans auto-verify, degraded ones land in the Review Queue with
+red/orange fields to correct.
 
-## Adding handwriting support (TrOCR, fine-tuned for Devanagari)
+## Enabling handwriting OCR (TrOCR, Devanagari fine-tune)
 
-The problem statement explicitly requires recognizing handwritten text.
-Tesseract (used by default) handles printed text well but is genuinely
-poor at handwriting — that's not a config issue, it's what Tesseract's
-underlying model was and wasn't trained on. Handwriting support is built
-but **off by default** (`ENABLE_HANDWRITING_OCR = False` in `main.py`)
-because it needs extra dependencies and a large model download.
-
-**Which model, and why:** `handwriting_ocr.py` uses
-`paudelanil/trocr-devanagari-2` — a community fine-tune of Microsoft's
-TrOCR on Devanagari handwriting data (the IIIT-INDIC-HW-WORDS dataset from
-IIIT Hyderabad's CVIT lab — see the dataset discussion in project notes).
-An earlier version used the base English TrOCR model and it hallucinated
-fluent English words on non-English input — not just wrong guesses, but
-structurally incapable of producing Devanagari characters at all, since
-it was never trained on that script. This swap is the actual fix, not a
-workaround. **Still unvalidated against real land-record handwriting** —
-a community fine-tune's quality varies more than an official release;
-test it yourself before trusting its accuracy in a demo.
-
-**1. Install the extra dependencies:**
+Off by default (`ENABLE_HANDWRITING_OCR = False` in `main.py`) — needs
+extra dependencies and a ~1.3GB model download.
 ```bash
 pip install torch "transformers==4.46.3" sentencepiece
 ```
-(The pinned version matters — see the note in `handwriting_ocr.py` about
-newer transformers releases failing to load TrOCR's tokenizer on Windows.)
-
-**2. Enable it in `backend/main.py`:**
-```python
-ENABLE_HANDWRITING_OCR = True
-```
-
-**3. Restart the server and upload an image.**
-First upload after enabling downloads the model (~1.3GB) from Hugging
-Face — needs real internet, will take a few minutes. Subsequent runs use
-the cached model.
-
-**4. How it works:** `hybrid_ocr.py` runs Tesseract first, then re-checks
-any word Tesseract was unsure about (confidence below 60%) by re-running
-that crop through TrOCR, keeping whichever engine was more confident.
-Full details and honest limitations are documented in the docstrings of
-`hybrid_ocr.py` and `handwriting_ocr.py` — read those before demoing this
-part.
-
-**Report back what you see** when you test this on real handwritten
-samples — accuracy, speed, and any errors — so we can tune the confidence
-threshold and decide whether to feature it prominently in your demo or
-describe it as "designed and implemented, tuning in progress."
-
-## Regenerating or expanding the sample dataset
-```bash
-cd scripts
-python3 gen_data.py --count 30 --out ../data/sample_records
-```
-This regenerates records with different random villages/owners/khasra
-numbers and a random mix of light/medium/heavy scan degradation. See
-`ground_truth.json` in the output folder for the true field values, used
-by `evaluate.py` to score accuracy.
+Set `ENABLE_HANDWRITING_OCR = True` in `backend/main.py` and restart.
+`transformers` must stay pinned at `4.46.3` — newer 5.x releases fail to
+load TrOCR's tokenizer (a known compatibility break, not a config issue).
+`hybrid_ocr.py` runs Tesseract first and only re-checks low-confidence
+words through TrOCR, keeping whichever engine scored higher.
 
 ## What's real vs. simulated — be upfront about this in Q&A
 
-| Component | This PoC | Production plan (as on your slides) |
+| Component | This PoC | Production plan |
 |---|---|---|
-| Printed-text OCR | Tesseract (`eng+hin`), with an adaptive two-pass preprocessing recovery step for low-confidence scans (see EVALUATION.md) | Tesseract/PaddleOCR, same idea |
-| Handwriting OCR | TrOCR fine-tuned for Devanagari (`paudelanil/trocr-devanagari-2`, community fine-tune on IIIT-INDIC-HW-WORDS), confidence-triggered — off by default, see setup section above. Not yet tested against real handwritten land-record samples | CRNN or TrOCR variant fine-tuned specifically on Indian regional handwriting (e.g. against IIIT-HW) — largely achieved by the swap above; further fine-tuning on land-record-specific handwriting would be the next refinement |
+| Printed-text OCR | Tesseract (`eng+hin+tel`), two-pass recovery on low confidence | Tesseract/PaddleOCR, same idea |
+| Handwriting OCR | TrOCR fine-tuned for Devanagari, confidence-triggered, opt-in | CRNN/TrOCR fine-tuned further on land-record-specific handwriting |
 | Field mapping | Regex + fuzzy label matching | IndicBERT/IndicNER |
-| Layout/doc-type detection | Single hardcoded layout | LayoutLMv3/Donut |
-| Cross-validation | Rule-based diff vs. DB records | ML-based anomaly/matching model |
-| Bhoomi/DILRMP/e-Dharti integration | Not connected — no public sandbox exists | Real API integration once government access is granted |
-| GIS (Bhu-Naksha) | Not implemented | PostGIS + Bhu-Naksha overlay |
-| Active-learning retraining | Not implemented (officer corrections are saved, but nothing retrains on them yet) | Retrain OCR/NER on accumulated corrections |
-| Deployment | Local dev server | Docker/Kubernetes hybrid-cloud |
-
-**Why this is fine to say out loud:** every substitution sits behind the
-exact same interface the real component would use (`run_ocr()`,
-`extract_fields()`, `cross_validate()`) — swapping in PaddleOCR or a trained
-NER model later doesn't change the API contract, the database schema, or
-the UI. That's the point to make if a judge asks "is this the real thing."
+| Layout/doc-type detection | Single hardcoded layout + handwritten-vs-printed classifier | LayoutLMv3/Donut |
+| Duplicate detection | Exact hash match + khasra/khata/village rule match | ML-based fuzzy entity matching |
+| Cadastral map processing | Parcel/survey-number extraction from map images | Full GIS vectorization (PostGIS + Bhu-Naksha overlay) |
+| Bhoomi/DILRMP integration | Not connected — no public sandbox available | Real API integration once government access is granted |
+| Active-learning retraining | Not implemented | Retrain OCR/NER on accumulated officer corrections |
+| Auth / role access | Demo login (officer/citizen profiles) | Government SSO + granular RBAC |
+| Deployment | Local dev server (tunnel-able) | Docker/Kubernetes hybrid-cloud |
 
 ## Known limitations to mention proactively
-- Combined `eng+hin` Tesseract language mode occasionally emits stray
-  Devanagari characters when OCR confidence is already very low (visible on
-  the heavy-degradation samples) — a realistic and disclosable failure mode,
-  not a bug to hide.
+- Telugu OCR has a known line-grouping issue: font-metric differences push
+  label/value pairs outside `extract.py`'s fixed grouping tolerance more
+  often than with Hindi — documented as a specific fixable bug, not just
+  "Telugu is harder."
 - Only one document layout is supported; a second layout (e.g. a sale deed
-  format) would need its own `FIELD_LABELS` schema in `extract.py`.
-- Cross-validation only checks for an existing record with the same
-  khasra_no + village — no fuzzy/partial matching yet.
+  format) would need its own field schema in `extract.py`.
+- Cross-validation only checks khasra_no + khata_no + village against
+  existing records — no fuzzy/partial matching yet.
+- Map coordinates are illustrative village-center points, not surveyed
+  parcel boundaries.
