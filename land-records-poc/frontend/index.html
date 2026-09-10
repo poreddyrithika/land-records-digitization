@@ -1,0 +1,2410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intelligent Land Record Digitization & Validation System | SIH Demo</title>
+<meta name="description" content="Intelligent Land Record Digitization and Validation System - SIH26018 Demo Console for scanning, OCR processing, field extraction, and officer review of land records.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ LOGIN CONTAINER (FULLSCREEN AUTH OVERLAY) ============ -->
+<div id="loginContainer">
+  <div class="login-card">
+    <!-- Tricolor Indian Flag Top Accent Strip -->
+    <div class="login-tricolor">
+      <div class="stripe-saffron"></div>
+      <div class="stripe-white"></div>
+      <div class="stripe-green"></div>
+    </div>
+
+    <div class="login-body">
+      <!-- Government Pillar Emblem -->
+      <div class="login-emblem-disc">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="21" x2="21" y2="21"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <polygon points="12 3 2 10 22 10 12 3"></polygon>
+          <line x1="6" y1="10" x2="6" y2="21"></line>
+          <line x1="10" y1="10" x2="10" y2="21"></line>
+          <line x1="14" y1="10" x2="14" y2="21"></line>
+          <line x1="18" y1="10" x2="18" y2="21"></line>
+        </svg>
+      </div>
+
+      <div class="login-portal-tag">GOVERNMENT OF INDIA • DILRMP PORTAL</div>
+      <h2 class="login-title">Land Record Digitization &amp; Validation</h2>
+      <div class="login-subtitle">Department of Land Resources • Ministry of Rural Development</div>
+
+      <form id="loginForm" onsubmit="event.preventDefault(); submitLogin();">
+        <div class="login-form-group">
+          <label class="login-form-label" for="loginUsername">Username / Official ID</label>
+          <div class="login-input-box">
+            <span class="login-input-icon">👤</span>
+            <input type="text" id="loginUsername" placeholder="Enter username (or click demo profile below)" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="login-form-group">
+          <label class="login-form-label" for="loginPassword">Security Password</label>
+          <div class="login-input-box">
+            <span class="login-input-icon">🔒</span>
+            <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" required>
+          </div>
+        </div>
+
+        <button type="submit" class="login-submit-btn" id="loginSubmitBtn">
+          <span>Sign In to Secure Portal</span>
+          <span>→</span>
+        </button>
+      </form>
+
+      <div class="login-demo-header">DEMO PROFILES (FOR SIH EVALUATION)</div>
+
+      <!-- Exactly 2 demo profiles: Tehsildar (officer) and Citizen (citizen). NO clerk! -->
+      <div class="login-demo-grid">
+        <div class="login-demo-card" id="demoCardOfficer" onclick="selectDemoProfile('officer')" title="Login as Officer / Tehsildar">
+          <span class="card-icon">🏛️</span>
+          <div class="card-title">Tehsildar</div>
+          <div class="card-role">officer</div>
+        </div>
+        <div class="login-demo-card" id="demoCardCitizen" onclick="selectDemoProfile('citizen')" title="Login as Citizen">
+          <span class="card-icon">👤</span>
+          <div class="card-title">Citizen</div>
+          <div class="card-role">citizen</div>
+        </div>
+      </div>
+
+      <div class="login-footer-note">
+        <span>🔒</span>
+        <span>256-bit Encrypted Government Session • DILRMP Security Standard</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP WRAPPER ============ -->
+<div id="appWrapper" style="display:none;">
+
+<header id="mainHeader">
+  <div>
+    <h1 id="headerMainTitle">Intelligent Land Record Digitization &amp; Validation System</h1>
+    <div class="tag" id="headerSubTitle">SIH26018 · Team Spirit · Demo Console</div>
+  </div>
+
+  <!-- Global Universal Search (Header Search for Officer) -->
+  <div class="global-search-wrapper" id="headerSearchWrapper">
+    <div class="search-input-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="globalSearchInput" placeholder="Search owner name, survey #, khata, village…" autocomplete="off" oninput="handleGlobalSearch(this.value)">
+      <button class="clear-search-btn" id="globalSearchClear" onclick="clearGlobalSearch()" style="display:none;" title="Clear search">✕</button>
+    </div>
+    <div id="globalSearchResults" class="search-dropdown" style="display:none;"></div>
+  </div>
+
+  <div class="user-session-wrapper">
+    <div class="api-status" id="apiStatus">checking API…</div>
+    <div class="user-badge" id="userSessionBadge">
+      <span id="userBadgeIcon">🏛️</span>
+      <span id="userBadgeLabel">Tehsildar (Officer)</span>
+    </div>
+    <button class="sign-out-btn" id="signOutBtn" onclick="handleLogout()" title="Sign out / Switch user">
+      <span>🚪</span>
+      <span>Sign Out</span>
+    </button>
+  </div>
+</header>
+
+<nav id="mainNav">
+  <button class="tab-btn active" data-tab="upload">Upload &amp; Process</button>
+  <button class="tab-btn" data-tab="review">Officer Review Queue</button>
+  <button class="tab-btn" data-tab="dashboard">Records Dashboard</button>
+  <button class="tab-btn" data-tab="map">Map View</button>
+</nav>
+
+<main>
+
+  <!-- ============ UPLOAD TAB ============ -->
+  <section id="tab-upload">
+    <div class="card">
+      <div class="drop" id="dropZone">
+        <div class="drop-icon">📄</div>
+        <div class="drop-title">Click or drag to upload scanned records or multi-page PDFs</div>
+        <div class="drop-subtitle">JPG, PNG, PDF (Multi-file &amp; multi-page supported) · Automatic page splitting, OCR, field extraction &amp; cross-validation</div>
+        <input type="file" id="fileInput" accept="image/*,.pdf" multiple>
+      </div>
+      <div class="upload-options">
+        <div class="option-group">
+          <label>Language</label>
+          <select id="uploadLang">
+            <option value="auto">Auto Detect</option>
+            <option value="english">English</option>
+            <option value="telugu">Telugu</option>
+            <option value="hindi">Hindi</option>
+            <option value="mixed">Mixed Language</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label>Document Type</label>
+          <select id="uploadDocType">
+            <option value="auto">Auto Detect</option>
+            <option value="Printed">Printed</option>
+            <option value="Handwritten">Handwritten</option>
+            <option value="Cadastral Map">Cadastral / Village Map</option>
+          </select>
+        </div>
+      </div>
+      <div id="uploadStatus" class="muted" style="margin-top:12px;"></div>
+      <div id="processingSteps" class="processing-status" style="display:none;"></div>
+      <div id="batchProgressCard" class="batch-progress-card" style="display:none;"></div>
+    </div>
+
+    <!-- Batch Upload Results Card -->
+    <div class="card" id="batchResultCard" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+        <h3 id="batchResultTitle">📑 Batch Upload &amp; Multi-Page Results</h3>
+        <span id="batchCountBadge" class="badge verified"></span>
+      </div>
+      <div id="batchRecordsList" class="batch-records-grid"></div>
+    </div>
+
+    <!-- Cadastral Map Extraction Result -->
+    <div class="card" id="mapResultCard" style="display:none;">
+      <h3 style="margin-bottom:12px;">🗺️ Cadastral / Land Map Extraction</h3>
+      <div id="mapResultContent"></div>
+    </div>
+
+    <div class="card" id="lastResultCard" style="display:none;">
+      <h3 style="margin-bottom:12px;">Last Processed Record</h3>
+      <div id="lastResult"></div>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW TAB ============ -->
+  <section id="tab-review" style="display:none;">
+    <div class="card">
+      <div class="toolbar">
+        <h3>Officer Review Queue</h3>
+        <button class="ghost" id="refreshReviewBtn">Refresh</button>
+      </div>
+      <div class="pipeline-note">Records are prioritized by: 1) Duplicate warnings 2) Low OCR confidence 3) Validation conflicts 4) Missing fields 5) Pending verification</div>
+      <div id="reviewList"></div>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD TAB ============ -->
+  <section id="tab-dashboard" style="display:none;">
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid" id="dashboardStats"></div>
+
+    <!-- Records Table -->
+    <div class="card">
+      <div class="toolbar">
+        <h3>All Records</h3>
+        <button class="ghost" id="refreshDashBtn">Refresh</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="dashSearch" placeholder="Search by owner name, survey number, khata, record ID, village…">
+        <button class="ghost" onclick="searchDashboard()">Search</button>
+      </div>
+      <div class="table-container">
+        <table id="dashboardTable">
+          <thead><tr>
+            <th>Record ID</th><th>Source</th><th>Owner</th><th>Survey No.</th><th>Village</th><th>OCR Confidence</th><th>Verification</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MAP TAB ============ -->
+  <section id="tab-map" style="display:none;">
+
+    <!-- Citizen Dedicated Search & Welcome Banner (Visible only for Citizen) -->
+    <div id="citizenPortalBanner" class="citizen-portal-banner" style="display:none;">
+      <div class="citizen-portal-header-row">
+        <div>
+          <h2>🏛️ Citizen Land Record &amp; Map Portal</h2>
+          <div class="subtitle">Search, locate land parcels, and view official digital Record of Rights (ROR) certificates</div>
+        </div>
+      </div>
+
+      <!-- Prominent Citizen Search Bar -->
+      <div class="citizen-search-box">
+        <div class="citizen-search-input-wrapper">
+          <span class="citizen-search-icon">🔍</span>
+          <input type="text" id="citizenSearchInput" class="citizen-search-input" placeholder="Search your land parcel by Owner Name (e.g. Ramesh, వెంకటేశ్వర), Survey / Khasra No (e.g. 101/2), Khata No, or Village…" autocomplete="off" oninput="handleCitizenSearch(this.value)">
+          <button class="clear-search-btn" id="citizenSearchClear" onclick="clearCitizenSearch()" style="display:none; color:#475569;" title="Clear search">✕</button>
+        </div>
+        <div id="citizenSearchResults" class="citizen-search-dropdown" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <button class="ghost" id="refreshMapBtn">Refresh</button>
+      </div>
+
+      <!-- Map Statistics -->
+      <div class="map-stats" id="mapStatsPanel"></div>
+
+      <!-- Map Filters -->
+      <div class="map-filters" id="mapFilters">
+        <div class="filter-group" id="statusFilterGroup">
+          <button class="filter-btn active" data-filter="all" onclick="setMapFilter('all', this)">All</button>
+          <button class="filter-btn green-filter" data-filter="verified" onclick="setMapFilter('verified', this)">🟢 Verified</button>
+          <button class="filter-btn orange-filter" data-filter="pending_review" onclick="setMapFilter('pending_review', this)">🟠 Pending Review</button>
+        </div>
+        <select id="mapStateFilter" onchange="applyMapFilters()"><option value="">All States</option></select>
+        <select id="mapDistrictFilter" onchange="applyMapFilters()"><option value="">All Districts</option></select>
+        <select id="mapVillageFilter" onchange="applyMapFilters()"><option value="">All Villages</option></select>
+        <select id="mapLangFilter" onchange="applyMapFilters()"><option value="">All Languages</option></select>
+        <select id="mapDocTypeFilter" onchange="applyMapFilters()"><option value="">All Document Types</option></select>
+      </div>
+
+      <!-- Map -->
+      <div id="mapView"></div>
+
+      <!-- Legend -->
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-top:10px;flex-wrap:wrap;gap:10px;">
+        <div class="map-note">
+          Pins are placed at approximate village-center coordinates (illustrative geocoding), not surveyed parcel
+          boundaries — a real deployment would overlay actual Bhu-Naksha parcel geometry per khasra number.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ RECORD DETAIL MODAL ============ -->
+<div id="recordModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">Record Details</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
+<!-- ============ GEMINI CHATBOT WIDGET ============ -->
+<div id="geminiChatFab" class="gemini-chat-fab" onclick="toggleGeminiChat()">
+  <span class="sparkle">✨</span>
+  <span>Ask AI Assistant</span>
+  <span class="model-tag">Gemini 1.5 Flash</span>
+</div>
+
+<div id="geminiChatWindow" class="gemini-chat-window">
+  <div class="gemini-chat-header">
+    <div class="gemini-chat-header-top">
+      <div class="gemini-chat-title">
+        <span>🤖</span>
+        <span>Land Record Document AI</span>
+      </div>
+      <button class="gemini-chat-close-btn" onclick="toggleGeminiChat()" title="Close chat">✕</button>
+    </div>
+    <div class="gemini-chat-record-selector">
+      <span>Target Record:</span>
+      <select id="geminiRecordSelect" onchange="onChatRecordSelected(this.value)">
+        <option value="">Loading records…</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="geminiChatBody" class="gemini-chat-body">
+    <div class="chat-bubble bot">
+      <div class="chat-bubble-sender">Gemini AI Assistant (Grounding Engine)</div>
+      <div>
+        Namaste! I am your <b>Land Record AI Assistant</b> powered by Gemini 1.5 Flash.
+        I provide strictly grounded document Q&amp;A referencing extracted ownership, survey &amp; khata details, validation checks, and OCR transcripts.
+      </div>
+      <div class="grounded-tag">🛡️ Strict Grounding Active (No Hallucinations)</div>
+    </div>
+  </div>
+
+  <div class="gemini-quick-prompts">
+    <button onclick="sendQuickPrompt('Who is the registered owner of this land parcel?')">👤 Owner Details</button>
+    <button onclick="sendQuickPrompt('What is the surveyed land area and plot classification?')">📐 Land Area</button>
+    <button onclick="sendQuickPrompt('Are there any validation warnings or duplicate conflicts?')">⚠ Warnings</button>
+    <button onclick="sendQuickPrompt('What is the village, tehsil, district, and coordinates location?')">📍 Location</button>
+    <button onclick="sendQuickPrompt('What is the OCR confidence and is officer review required?')">🔍 Review Status</button>
+  </div>
+
+  <div class="gemini-chat-footer">
+    <input type="text" id="geminiChatInput" class="gemini-chat-input" placeholder="Ask about owner, area, survey, warnings…" onkeydown="if(event.key==='Enter')sendGeminiMessage()">
+    <button class="gemini-chat-send-btn" onclick="sendGeminiMessage()" title="Send">➤</button>
+  </div>
+</div>
+
+</div> <!-- ============ END OF APP WRAPPER ============ -->
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+// ============================================================
+// API Configuration
+// ============================================================
+const API = "http://localhost:8000";
+
+// ============================================================
+// Authentication & Role-Based Access Control (Officer & Citizen)
+// ============================================================
+let currentRole = null;
+let currentUsername = "";
+
+function selectDemoProfile(role) {
+  const officerCard = document.getElementById("demoCardOfficer");
+  const citizenCard = document.getElementById("demoCardCitizen");
+  const uInput = document.getElementById("loginUsername");
+  const pInput = document.getElementById("loginPassword");
+
+  if (role === "officer") {
+    if (officerCard) officerCard.classList.add("active");
+    if (citizenCard) citizenCard.classList.remove("active");
+    if (uInput) uInput.value = "officer";
+    if (pInput) pInput.value = "officer123";
+  } else if (role === "citizen") {
+    if (citizenCard) citizenCard.classList.add("active");
+    if (officerCard) officerCard.classList.remove("active");
+    if (uInput) uInput.value = "citizen";
+    if (pInput) pInput.value = "citizen123";
+  }
+
+  // Smooth auto-submit on demo card click
+  setTimeout(() => {
+    submitLogin();
+  }, 120);
+}
+
+function submitLogin() {
+  const uInput = document.getElementById("loginUsername");
+  const pInput = document.getElementById("loginPassword");
+  const username = (uInput?.value || "").trim();
+  const password = (pInput?.value || "").trim();
+
+  if (!username) {
+    alert("Please enter a username or click a demo profile below.");
+    return;
+  }
+
+  const uLower = username.toLowerCase();
+  let role = "citizen";
+  let displayName = "Citizen Portal · Public Access";
+  let roleLabel = "Citizen";
+  let roleIcon = "👤";
+
+  if (uLower.includes("officer") || uLower.includes("tehsildar") || uLower.includes("admin")) {
+    role = "officer";
+    displayName = "Tehsildar (Officer) · S. Sharma";
+    roleLabel = "Tehsildar (Officer)";
+    roleIcon = "🏛️";
+  }
+
+  const authData = { role, username, displayName, roleLabel, roleIcon };
+  localStorage.setItem("dilrmp_auth", JSON.stringify(authData));
+  applyRole(role, displayName, roleLabel, roleIcon);
+}
+
+function applyRole(role, displayName, roleLabel, roleIcon) {
+  currentRole = role;
+  currentUsername = displayName;
+
+  const loginContainer = document.getElementById("loginContainer");
+  const appWrapper = document.getElementById("appWrapper");
+  if (loginContainer) loginContainer.style.display = "none";
+  if (appWrapper) appWrapper.style.display = "block";
+
+  // Update header user badge
+  const userBadgeIcon = document.getElementById("userBadgeIcon");
+  const userBadgeLabel = document.getElementById("userBadgeLabel");
+  if (userBadgeIcon) userBadgeIcon.textContent = roleIcon || (role === "officer" ? "🏛️" : "👤");
+  if (userBadgeLabel) userBadgeLabel.textContent = roleLabel || (role === "officer" ? "Tehsildar (Officer)" : "Citizen");
+
+  const headerMainTitle = document.getElementById("headerMainTitle");
+  const headerSubTitle = document.getElementById("headerSubTitle");
+  const mainNav = document.getElementById("mainNav");
+  const headerSearch = document.getElementById("headerSearchWrapper");
+  const citizenBanner = document.getElementById("citizenPortalBanner");
+
+  if (role === "officer") {
+    if (headerMainTitle) headerMainTitle.textContent = "Intelligent Land Record Digitization & Validation System";
+    if (headerSubTitle) headerSubTitle.textContent = "SIH26018 · Team Spirit · Demo Console";
+    if (mainNav) mainNav.style.display = "flex";
+    if (headerSearch) headerSearch.style.display = "block";
+    if (citizenBanner) citizenBanner.style.display = "none";
+
+    // Show upload tab by default or keep active
+    const activeTabBtn = document.querySelector(".tab-btn.active") || document.querySelector('.tab-btn[data-tab="upload"]');
+    if (activeTabBtn) activeTabBtn.click();
+    if (typeof loadUploadedRecordsAndStats === "function") loadUploadedRecordsAndStats();
+  } else {
+    // Citizen Mode: Strictly Map View and Search Bar
+    if (headerMainTitle) headerMainTitle.textContent = "Government of India · DILRMP";
+    if (headerSubTitle) headerSubTitle.textContent = "Citizen Land Record & Map Portal";
+    if (mainNav) mainNav.style.display = "none";
+    if (headerSearch) headerSearch.style.display = "none";
+    if (citizenBanner) citizenBanner.style.display = "block";
+
+    // Hide all other tabs, show Map View only
+    TABS.forEach(t => {
+      const sec = document.getElementById("tab-" + t);
+      if (sec) sec.style.display = (t === "map") ? "block" : "none";
+    });
+
+    // Initialize & size Leaflet map properly
+    loadMap();
+    setTimeout(() => {
+      if (leafletMap) leafletMap.invalidateSize();
+    }, 150);
+  }
+}
+
+function handleLogout() {
+  localStorage.removeItem("dilrmp_auth");
+  currentRole = null;
+  const loginContainer = document.getElementById("loginContainer");
+  const appWrapper = document.getElementById("appWrapper");
+  if (loginContainer) loginContainer.style.display = "flex";
+  if (appWrapper) appWrapper.style.display = "none";
+
+  // Reset inputs and demo active states
+  const uInput = document.getElementById("loginUsername");
+  const pInput = document.getElementById("loginPassword");
+  if (uInput) uInput.value = "";
+  if (pInput) pInput.value = "";
+  document.querySelectorAll(".login-demo-card").forEach(c => c.classList.remove("active"));
+}
+
+function checkAuthOnLoad() {
+  const saved = localStorage.getItem("dilrmp_auth");
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      applyRole(data.role, data.displayName, data.roleLabel, data.roleIcon);
+      return;
+    } catch (e) {
+      console.error("Auth load error:", e);
+    }
+  }
+  // Not logged in -> show login container
+  const loginContainer = document.getElementById("loginContainer");
+  const appWrapper = document.getElementById("appWrapper");
+  if (loginContainer) loginContainer.style.display = "flex";
+  if (appWrapper) appWrapper.style.display = "none";
+}
+
+// ============================================================
+// CITIZEN UNIVERSAL SEARCH & QUICK LOCATE
+// ============================================================
+let citizenSearchTimeout = null;
+
+function clearCitizenSearch() {
+  const input = document.getElementById("citizenSearchInput");
+  const clearBtn = document.getElementById("citizenSearchClear");
+  const dropdown = document.getElementById("citizenSearchResults");
+  if (input) input.value = "";
+  if (clearBtn) clearBtn.style.display = "none";
+  if (dropdown) {
+    dropdown.innerHTML = "";
+    dropdown.style.display = "none";
+  }
+}
+
+function quickCitizenSearch(term) {
+  const input = document.getElementById("citizenSearchInput");
+  if (input) {
+    input.value = term;
+    handleCitizenSearch(term);
+  }
+}
+
+async function handleCitizenSearch(query) {
+  const clearBtn = document.getElementById("citizenSearchClear");
+  const dropdown = document.getElementById("citizenSearchResults");
+  if (!dropdown) return;
+
+  const term = (query || "").trim();
+  if (clearBtn) clearBtn.style.display = term ? "inline-block" : "none";
+
+  if (!term) {
+    dropdown.innerHTML = "";
+    dropdown.style.display = "none";
+    return;
+  }
+
+  if (citizenSearchTimeout) clearTimeout(citizenSearchTimeout);
+  citizenSearchTimeout = setTimeout(async () => {
+    try {
+      dropdown.style.display = "block";
+      dropdown.innerHTML = `<div style="padding:14px; text-align:center; color:#777; font-size:13px;">Searching national land registry…</div>`;
+
+      const res = await fetch(`${API}/records/search/global?q=${encodeURIComponent(term)}`);
+      if (!res.ok) throw new Error("Search failed");
+      const results = await res.json();
+
+      if (!results.length) {
+        dropdown.innerHTML = `
+          <div style="padding:18px; text-align:center; color:#64748b; font-size:13px;">
+            No land records found for "<b>${term}</b>".<br>
+            <small style="color:#94a3b8; margin-top:4px; display:block;">Try searching by Owner Name (e.g. Ramesh, వెంకటేశ్వర), Survey / Khasra No (e.g. 101/2), or Village (e.g. Rampur).</small>
+          </div>`;
+        return;
+      }
+
+      let html = `<div style="padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+        <span>Found ${results.length} Land Record${results.length > 1 ? 's' : ''}</span>
+        <span style="font-size:11px; color:#64748b;">Click record to locate parcel on map & view ROR certificate</span>
+      </div>`;
+
+      for (const r of results.slice(0, 8)) {
+        const sNo = r.survey_number || r.khasra_no || "—";
+        const father = r.father_name ? ` · S/o ${r.father_name}` : "";
+        const isVerified = ["verified", "published"].includes(r.verification_status);
+        const area = r.area_hectare ? `• <b>${r.area_hectare}</b> Ha/Acres` : "";
+
+        html += `
+          <div class="search-item" onclick="selectCitizenSearchResult(${r.id})" style="padding:12px 14px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background 0.15s;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="font-weight:700; font-size:13.5px; color:#0f172a;">${r.owner_name || 'Landholder'}${father}</span>
+              <span class="badge ${isVerified ? 'verified' : 'pending'}" style="font-size:10.5px;">${isVerified ? '🟢 Verified' : '🟠 Pending Review'}</span>
+            </div>
+            <div style="font-size:12px; color:#64748b; display:flex; gap:10px; flex-wrap:wrap;">
+              <span>Survey/Khasra: <b style="color:#0f172a;">${sNo}</b></span>
+              ${r.khata_no ? `<span>Khata: <b style="color:#0f172a;">${r.khata_no}</b></span>` : ""}
+              <span>Village: <b style="color:#0f172a;">${r.village || '—'}</b></span>
+              ${area}
+            </div>
+          </div>
+        `;
+      }
+      dropdown.innerHTML = html;
+    } catch (e) {
+      dropdown.innerHTML = `<div style="padding:12px; color:#d93025; font-size:12px;">Search error: ${e.message}</div>`;
+    }
+  }, 180);
+}
+
+function selectCitizenSearchResult(id) {
+  clearCitizenSearch();
+  fetch(`${API}/records/${id}`).then(r => r.json()).then(record => {
+    if (leafletMap && record.latitude && record.longitude) {
+      leafletMap.setView([record.latitude, record.longitude], 15, { animate: true });
+    }
+    openRecordModal(id);
+  }).catch(e => {
+    openRecordModal(id);
+  });
+}
+
+// Close citizen search dropdown on click outside
+document.addEventListener("click", e => {
+  const box = document.querySelector(".citizen-search-box");
+  const dropdown = document.getElementById("citizenSearchResults");
+  if (box && dropdown && !box.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
+
+// ============================================================
+// Tab Navigation (preserving existing pattern)
+// ============================================================
+const TABS = ["upload", "review", "dashboard", "map"];
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    TABS.forEach(t => {
+      document.getElementById("tab-" + t).style.display = (t === btn.dataset.tab) ? "block" : "none";
+    });
+    if (btn.dataset.tab === "upload") loadUploadedRecordsAndStats();
+    if (btn.dataset.tab === "review") loadReviewQueue();
+    if (btn.dataset.tab === "dashboard") loadDashboard();
+    if (btn.dataset.tab === "map") loadMap();
+  };
+});
+
+// ============================================================
+// API Health Check & Startup
+// ============================================================
+fetch(API + "/").then(r => r.json()).then(() => {
+  const el = document.getElementById("apiStatus");
+  el.textContent = "API connected";
+  el.classList.add("connected");
+  if (currentRole === "officer") {
+    loadUploadedRecordsAndStats();
+  }
+}).catch(() => {
+  document.getElementById("apiStatus").textContent = "API not reachable — start the backend";
+});
+
+// ============================================================
+// Utility Functions
+// ============================================================
+// Only fields that are actually present in the source documents (per the
+// sample record ground truth) are listed here. A field that's never in the
+// document has nothing to extract, and forcing it into the UI just shows an
+// empty box that drags the record's confidence down for no reason.
+const FIELD_LABELS = {
+  owner_name: "Owner Name",
+  khasra_no: "Khasra No.",
+  khata_no: "Khata No.",
+  area_hectare: "Area (Acres)",
+  village: "Village",
+  tehsil: "Tehsil",
+  district: "District",
+  classification: "Classification",
+  mutation_no: "Mutation No.",
+};
+
+function confClass(c) { return c < 65 ? "low" : (c < 85 ? "med" : "high"); }
+
+function parseFieldConfidence(str) {
+  const out = {};
+  if (!str) return out;
+  str.split(",").forEach(pair => {
+    const [k, v] = pair.split(":");
+    if (k && v) out[k] = parseFloat(v);
+  });
+  return out;
+}
+
+function submissionBadge(status) {
+  const labels = { submitted: "Submitted", pending: "Pending", not_submitted: "Not Submitted" };
+  const classes = { submitted: "submitted", pending: "pending", not_submitted: "not-submitted" };
+  return `<span class="badge ${classes[status] || 'none'}">${labels[status] || status || '—'}</span>`;
+}
+
+function verificationBadge(status) {
+  const classes = {
+    verified: "verified", published: "published", under_review: "under-review",
+    pending: "pending", rejected: "rejected", not_applicable: "none"
+  };
+  const label = (status || "").replace(/_/g, " ");
+  return `<span class="badge ${classes[status] || 'none'}">${label || '—'}</span>`;
+}
+
+function duplicateBadge(status) {
+  if (status === "possible_duplicate" || status === "confirmed_duplicate")
+    return `<span class="badge duplicate">⚠ ${status.replace(/_/g, " ")}</span>`;
+  return "";
+}
+
+function sourceBadge(source) {
+  const isUpload = source === "user_upload";
+  return `<span class="badge ${isUpload ? 'verified' : ''}" style="font-size:10.5px; padding:2px 7px; ${isUpload ? 'background:#dcfce7; color:#166534; border:1px solid #86efac;' : 'background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;'}">${isUpload ? 'Upload' : 'Demo'}</span>`;
+}
+
+function formatDate(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) +
+    " " + dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ============================================================
+// UPLOAD & PROCESS
+// ============================================================
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+dropZone.onclick = () => fileInput.click();
+
+// Drag and drop support
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.style.borderColor = "var(--saffron)"; });
+dropZone.addEventListener("dragleave", () => { dropZone.style.borderColor = ""; });
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.style.borderColor = "";
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    handleIncomingFiles(e.dataTransfer.files);
+  }
+});
+
+fileInput.onchange = () => {
+  if (fileInput.files.length) handleIncomingFiles(fileInput.files);
+};
+
+function handleIncomingFiles(files) {
+  const filesArr = Array.from(files);
+  const docTypeHint = document.getElementById("uploadDocType").value;
+  if (filesArr.length === 1 && docTypeHint === "Cadastral Map") {
+    uploadSingleFile(filesArr[0]);
+  } else if (filesArr.length > 1 || filesArr[0].name.toLowerCase().endsWith(".pdf")) {
+    uploadBatchFiles(filesArr);
+  } else {
+    uploadSingleFile(filesArr[0]);
+  }
+}
+
+let sessionBatchRecords = [];
+
+function addToSessionBatch(newRecords) {
+  for (const rec of newRecords) {
+    const existingIdx = sessionBatchRecords.findIndex(r => 
+      (rec.id && r.id === rec.id) ||
+      (rec.file_hash && r.file_hash && r.file_hash === rec.file_hash) ||
+      (rec.record_id_str && r.record_id_str && r.record_id_str === rec.record_id_str) ||
+      (rec.is_file_duplicate && rec.duplicate_of_id_str && (r.record_id_str === rec.duplicate_of_id_str || String(r.id) === String(rec.duplicate_of_id_str)))
+    );
+
+    if (existingIdx >= 0) {
+      sessionBatchRecords[existingIdx] = {
+        ...sessionBatchRecords[existingIdx],
+        ...rec,
+        is_file_duplicate: true,
+        duplicate_of_id_str: rec.duplicate_of_id_str || sessionBatchRecords[existingIdx].record_id_str || ('REC' + sessionBatchRecords[existingIdx].id)
+      };
+    } else {
+      sessionBatchRecords.push(rec);
+    }
+  }
+}
+
+async function uploadSingleFile(file) {
+  const status = document.getElementById("uploadStatus");
+  const stepsEl = document.getElementById("processingSteps");
+  const mapCard = document.getElementById("mapResultCard");
+  const lastCard = document.getElementById("lastResultCard");
+  const batchCard = document.getElementById("batchResultCard");
+  const batchProgress = document.getElementById("batchProgressCard");
+
+  mapCard.style.display = "none";
+  lastCard.style.display = "none";
+  batchProgress.style.display = "none";
+  if (!sessionBatchRecords.length) {
+    batchCard.style.display = "none";
+  }
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  const allowed = ["jpg", "jpeg", "png", "bmp", "tiff", "tif", "pdf", "gif", "webp"];
+  if (!allowed.includes(ext)) {
+    status.textContent = `Error: Unsupported file type .${ext}. Allowed: ${allowed.join(", ")}`;
+    status.style.color = "var(--red)";
+    return;
+  }
+
+  status.style.color = "";
+  status.textContent = "Running pipeline…";
+  stepsEl.style.display = "flex";
+
+  const docTypeHint = document.getElementById("uploadDocType").value;
+  const isMap = docTypeHint === "Cadastral Map" || file.name.toLowerCase().includes("map");
+
+  const stepsList = isMap
+    ? ["Uploading Map", "Pre-processing", "Contour Detection", "Vectorizing Parcels", "OCR Labels", "Completed"]
+    : ["Uploading Document", "Pre-processing & Clean", "OCR & Handwriting Detection", "Extracting Schema Fields", "Cross-Validating", "Completed"];
+
+  showProcessingSteps(stepsList, 0);
+
+  let step = 0;
+  const stepInterval = setInterval(() => {
+    step++;
+    if (step < stepsList.length - 1) showProcessingSteps(stepsList, step);
+  }, 750);
+
+  try {
+    if (isMap) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("village", "Rampur");
+      const res = await fetch(API + "/upload/map", { method: "POST", body: formData });
+      clearInterval(stepInterval);
+      if (!res.ok) throw new Error(await res.text());
+      const mapData = await res.json();
+      showProcessingSteps(stepsList, stepsList.length);
+      status.textContent = `Done. Detected ${mapData.parcel_count} parcels for ${mapData.village} | Est. Area: ${mapData.estimated_total_area}`;
+      renderMapResult(mapData);
+    } else {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("language", document.getElementById("uploadLang").value);
+      formData.append("document_type_hint", docTypeHint);
+      const res = await fetch(API + "/upload", { method: "POST", body: formData });
+      clearInterval(stepInterval);
+      if (!res.ok) throw new Error(await res.text());
+      const record = await res.json();
+      showProcessingSteps(stepsList, stepsList.length);
+
+      if (record.is_file_duplicate) {
+        status.textContent = `⚠️ Already uploaded as ${record.duplicate_of_id_str || record.record_id_str}. Existing record retrieved without duplicate DB entry.`;
+        status.style.color = "#d97706";
+      } else {
+        status.textContent = `Done. Overall confidence: ${record.overall_confidence}% | Language: ${record.language || 'auto'} | ${record.duplicate_status !== 'none' ? '⚠ Duplicate detected' : '✓ No duplicates'}`;
+        status.style.color = "var(--green)";
+      }
+
+      // Single-file uploads show only the "Last Processed Record" card —
+      // the batch results card is reserved for actual multi-file/multi-page
+      // batch uploads (see uploadBatchFiles), so it isn't touched here.
+      renderLastResult(record);
+
+      // Refresh uploaded table, stats, and chat
+      chatRecordsCache = [];
+      loadChatRecordOptions(record.id);
+      loadUploadedRecordsAndStats();
+    }
+  } catch (e) {
+    clearInterval(stepInterval);
+    status.textContent = "Error: " + e.message;
+    status.style.color = "var(--red)";
+    stepsEl.style.display = "none";
+  }
+}
+
+async function uploadBatchFiles(filesArr) {
+  const status = document.getElementById("uploadStatus");
+  const stepsEl = document.getElementById("processingSteps");
+  const mapCard = document.getElementById("mapResultCard");
+  const lastCard = document.getElementById("lastResultCard");
+  const batchCard = document.getElementById("batchResultCard");
+  const batchProgress = document.getElementById("batchProgressCard");
+
+  mapCard.style.display = "none";
+  lastCard.style.display = "none";
+  if (!sessionBatchRecords.length) {
+    batchCard.style.display = "none";
+  }
+
+  const pdfCount = filesArr.filter(f => f.name.toLowerCase().endsWith(".pdf")).length;
+
+  batchProgress.style.display = "block";
+  batchProgress.innerHTML = `
+    <div class="batch-progress-header">
+      <span>Processing Batch of ${filesArr.length} File${filesArr.length > 1 ? 's' : ''} ${pdfCount > 0 ? `(includes ${pdfCount} multi-page PDF document${pdfCount > 1 ? 's' : ''})` : ''}</span>
+      <span class="badge pending">Pipeline Active</span>
+    </div>
+    <div class="batch-file-list">
+      ${filesArr.map(f => `
+        <div class="batch-file-item">
+          <span>📄 <b>${f.name}</b></span>
+          <span class="muted">${(f.size / 1024).toFixed(1)} KB</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  status.style.color = "";
+  status.textContent = "Processing multi-file / multi-page batch…";
+  stepsEl.style.display = "flex";
+
+  const stepsList = [
+    "Uploading Batch Files",
+    "Splitting Multi-page PDFs (300 DPI)",
+    "OCR & Handwriting Detection",
+    "Extracting Field Metadata",
+    "Cross-Validating Records",
+    "Batch Completed"
+  ];
+  showProcessingSteps(stepsList, 0);
+
+  let step = 0;
+  const stepInterval = setInterval(() => {
+    step++;
+    if (step < stepsList.length - 1) showProcessingSteps(stepsList, step);
+  }, 900);
+
+  try {
+    const formData = new FormData();
+    for (const file of filesArr) {
+      formData.append("files", file);
+    }
+    formData.append("language", document.getElementById("uploadLang").value);
+    formData.append("document_type_hint", document.getElementById("uploadDocType").value);
+
+    const res = await fetch(API + "/upload/batch", { method: "POST", body: formData });
+    clearInterval(stepInterval);
+
+    if (!res.ok) throw new Error(await res.text());
+    const createdRecords = await res.json();
+
+    showProcessingSteps(stepsList, stepsList.length);
+    batchProgress.style.display = "none";
+
+    addToSessionBatch(createdRecords);
+
+    const dupCount = createdRecords.filter(r => r.is_file_duplicate).length;
+    const newCount = createdRecords.length - dupCount;
+    status.textContent = `✓ Batch processing complete! ${newCount} new record${newCount === 1 ? '' : 's'} digitized${dupCount > 0 ? `, ${dupCount} exact duplicate${dupCount > 1 ? 's' : ''} flagged` : ''}. (${sessionBatchRecords.length} accumulated in session)`;
+    status.style.color = "var(--green)";
+
+    renderBatchResults(sessionBatchRecords);
+    if (createdRecords.length > 0) {
+      renderLastResult(createdRecords[createdRecords.length - 1]);
+    }
+
+    // Refresh chat options, map records, and uploaded search table
+    chatRecordsCache = [];
+    loadChatRecordOptions(createdRecords[0]?.id);
+    if (leafletMap) loadMap();
+    loadUploadedRecordsAndStats();
+
+  } catch (e) {
+    clearInterval(stepInterval);
+    batchProgress.style.display = "none";
+    status.textContent = "Batch Upload Error: " + e.message;
+    status.style.color = "var(--red)";
+    stepsEl.style.display = "none";
+  }
+}
+
+function renderBatchResults(records) {
+  const card = document.getElementById("batchResultCard");
+  const list = document.getElementById("batchRecordsList");
+  const badge = document.getElementById("batchCountBadge");
+
+  card.style.display = "block";
+  const dupCount = records.filter(r => r.is_file_duplicate).length;
+  const newCount = records.length - dupCount;
+  badge.textContent = `${records.length} Record${records.length > 1 ? 's' : ''} (${newCount} active${dupCount > 0 ? `, ${dupCount} duplicate` : ''})`;
+
+  list.innerHTML = records.map(r => {
+    const isFileDup = !!r.is_file_duplicate;
+    const isWarn = !!r.validation_warnings;
+    const isDup = !isFileDup && (r.duplicate_status || "") !== "none";
+    const dupTarget = r.duplicate_of_id_str || r.record_id_str || ('#' + r.id);
+
+    if (isFileDup) {
+      return `
+        <div class="batch-record-card" style="background:#fefce8; border:1.5px solid #eab308;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <span class="badge" style="background:#fef08a; color:#854d0e; font-weight:700; border:1px solid #facc15; margin-bottom:4px; display:inline-block;">
+                ⚠️ Already uploaded as ${dupTarget}
+              </span>
+              <div style="font-size:14px; font-weight:700; color:var(--navy);">${r.record_id_str || '#' + r.id} <span style="font-weight:normal; font-size:11.5px; color:#854d0e;">(Exact File Duplicate)</span></div>
+              <div style="font-size:13px; font-weight:600;">${r.owner_name || 'Unknown Owner'}</div>
+            </div>
+            <span class="conf-pill" style="background:#fef08a; color:#854d0e;">Skipped OCR</span>
+          </div>
+          <div style="font-size:12px; color:#713f12; margin-top:6px; display:flex; flex-direction:column; gap:2px;">
+            <span>SHA-256 match found. No duplicate database row created.</span>
+            <span>Survey/Khasra: <b>${r.survey_number || r.khasra_no || '—'}</b> | Khata: <b>${r.khata_no || '—'}</b></span>
+            <span>Location: <b>${r.village || '—'}, ${r.district || '—'}</b></span>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+            <button class="ghost" style="font-size:11.5px; padding:4px 8px; border-color:#eab308;" onclick="openRecordModal(${r.id})">Review Existing Record</button>
+            <button class="ghost" style="font-size:11.5px; padding:4px 8px; color:var(--navy); font-weight:600;" onclick="openGeminiChatForRecord(${r.id})">💬 Ask AI</button>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="batch-record-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <b style="font-size:14px; color:var(--navy);">${r.record_id_str || '#' + r.id}</b>
+            <div style="font-size:13px; font-weight:600;">${r.owner_name || 'Unknown Owner'}</div>
+          </div>
+          <span class="conf-pill ${confClass(r.overall_confidence)}">${(r.overall_confidence || 0).toFixed(0)}%</span>
+        </div>
+        <div style="font-size:12px; color:#555; display:flex; flex-direction:column; gap:2px;">
+          <span>Survey/Khasra: <b>${r.survey_number || r.khasra_no || '—'}</b> | Khata: <b>${r.khata_no || '—'}</b></span>
+          <span>Location: <b>${r.village || '—'}, ${r.district || '—'}</b></span>
+          <span>Area: <b>${r.area_hectare || '—'}</b> Ha · Doc: <b>${r.document_type || 'Scan'}</b></span>
+        </div>
+        ${isWarn ? `<div class="warn" style="font-size:11.5px; padding:4px 8px; margin:2px 0;">⚠ ${r.validation_warnings}</div>` : ''}
+        ${isDup ? `<div class="duplicate-warning" style="font-size:11.5px; padding:4px 8px; margin:2px 0;">⚠ Duplicate flagged</div>` : ''}
+        <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+          <button class="ghost" style="font-size:11.5px; padding:4px 8px;" onclick="openRecordModal(${r.id})">Review Details</button>
+          <button class="ghost" style="font-size:11.5px; padding:4px 8px; color:var(--navy); font-weight:600;" onclick="openGeminiChatForRecord(${r.id})">💬 Ask AI</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderMapResult(data) {
+  const card = document.getElementById("mapResultCard");
+  card.style.display = "block";
+  const content = document.getElementById("mapResultContent");
+  content.innerHTML = `
+    <div class="info-banner" style="margin-bottom:14px;">
+      📍 ${data.disclaimer}
+    </div>
+    <div class="review-layout">
+      <div>
+        <img src="${API}${data.image_url}" alt="Cadastral Map" style="border:1px solid #ccc;border-radius:6px;max-height:380px;object-fit:contain;width:100%;">
+      </div>
+      <div>
+        <div style="margin-bottom:12px;">
+          <h4 style="font-size:16px;color:var(--navy);">${data.document_type}</h4>
+          <span class="muted">Village: <b>${data.village}</b> | Scale: <b>${data.scale_detected || '1:2500'}</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div class="stat-card blue"><div class="stat-label">Parcels Detected</div><div class="stat-value">${data.parcel_count}</div></div>
+          <div class="stat-card green"><div class="stat-label">Estimated Area</div><div class="stat-value" style="font-size:16px;">${data.estimated_total_area}</div></div>
+        </div>
+        <div style="background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:12px;">
+          <b>Detected Survey Numbers:</b>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            ${(data.survey_numbers_detected || []).map(s => `<span class="badge" style="background:#e3f2fd;color:#0d47a1;font-weight:600;">Survey #${s}</span>`).join("")}
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:#555;">
+          Boundary Vectorization: ${data.boundary_information}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showProcessingSteps(steps, currentIndex) {
+  const el = document.getElementById("processingSteps");
+  el.innerHTML = steps.map((s, i) => {
+    let cls = "processing-step";
+    if (i < currentIndex) cls += " done";
+    else if (i === currentIndex) cls += " active";
+    const icon = i < currentIndex ? "✓" : (i === currentIndex ? "⏳" : "○");
+    return `<span class="${cls}">${icon} ${s}</span>` + (i < steps.length - 1 ? '<span class="step-arrow">→</span>' : '');
+  }).join("");
+}
+
+function renderLastResult(record) {
+  const card = document.getElementById("lastResultCard");
+  card.style.display = "block";
+  const conf = parseFieldConfidence(record.field_confidence);
+  const isDuplicate = record.duplicate_status && record.duplicate_status !== "none";
+
+  let html = `<div class="review-layout">
+    <div>${record.filename ? `<img src="${API}/uploads/${record.filename}" alt="Uploaded document">` : '<div class="empty">No image preview</div>'}</div>
+    <div>`;
+
+  if (record.is_file_duplicate) {
+    html += `<div style="background:#fefce8;border:1.5px solid #eab308;color:#854d0e;padding:12px;border-radius:6px;margin-bottom:12px;">
+      ⚠️ <b>Exact File Duplicate:</b> This document was already uploaded as <b>${record.duplicate_of_id_str || record.record_id_str || '#' + record.id}</b>. Existing record retrieved without adding a duplicate database row.
+    </div>`;
+  }
+
+  if (isDuplicate) {
+    html += `<div class="duplicate-warning">🔍 Possible duplicate record detected (${record.duplicate_status.replace(/_/g, " ")}) — check Officer Review Queue before publishing.</div>`;
+  }
+  if (record.validation_warnings) {
+    html += `<div class="warn">⚠ ${record.validation_warnings}</div>`;
+  }
+
+  html += `<div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    ${submissionBadge(record.submission_status)}
+    ${verificationBadge(record.verification_status)}
+    ${duplicateBadge(record.duplicate_status)}
+    <span class="muted">Confidence: <b>${record.overall_confidence}%</b></span>
+    <span class="muted">Language: <b>${record.language || 'auto'}</b></span>
+    <span class="muted">Doc Type: <b>${record.document_type || '—'}</b></span>
+  </div>`;
+  for (const [key, label] of Object.entries(FIELD_LABELS)) {
+    const c = conf[key] ?? 0;
+    html += `<div class="field-row">
+      <label>${label}</label>
+      <input value="${record[key] || ''}" class="${confClass(c)}" readonly>
+      <span class="conf-pill ${confClass(c)}">${c.toFixed(0)}%</span>
+    </div>`;
+  }
+  html += `<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+    <button class="ghost" onclick="openRecordModal(${record.id})">View Full Details</button>
+    <button class="primary" onclick="openGeminiChatForRecord(${record.id})">💬 Ask AI Assistant</button>
+  </div>`;
+  html += `</div></div>`;
+  document.getElementById("lastResult").innerHTML = html;
+}
+
+// ============================================================
+// OFFICER REVIEW QUEUE
+// ============================================================
+document.getElementById("refreshReviewBtn").onclick = loadReviewQueue;
+
+async function loadReviewQueue() {
+  try {
+    const res = await fetch(API + "/records?status=pending_review&limit=500");
+    const records = await res.json();
+    const container = document.getElementById("reviewList");
+
+    if (!records.length) {
+      container.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>No records pending review. Upload a scan or load demo data to get started.</div>`;
+      return;
+    }
+
+    // Sort by priority: 1) Duplicate records 2) Low OCR confidence 3) Validation conflicts 4) Missing fields 5) Pending verification
+    records.sort((a, b) => {
+      const aDup = (a.duplicate_status || "").includes("duplicate") ? 0 : 1;
+      const bDup = (b.duplicate_status || "").includes("duplicate") ? 0 : 1;
+      if (aDup !== bDup) return aDup - bDup;
+
+      const aLow = (a.overall_confidence || 0) < 65 ? 0 : 1;
+      const bLow = (b.overall_confidence || 0) < 65 ? 0 : 1;
+      if (aLow !== bLow) return aLow - bLow;
+
+      const aWarn = a.validation_warnings ? 0 : 1;
+      const bWarn = b.validation_warnings ? 0 : 1;
+      if (aWarn !== bWarn) return aWarn - bWarn;
+
+      const aMissing = (!a.owner_name || !a.survey_number) ? 0 : 1;
+      const bMissing = (!b.owner_name || !b.survey_number) ? 0 : 1;
+      if (aMissing !== bMissing) return aMissing - bMissing;
+
+      return (a.overall_confidence || 0) - (b.overall_confidence || 0);
+    });
+
+    container.innerHTML = records.map(r => renderReviewCard(r)).join("");
+  } catch (e) {
+    document.getElementById("reviewList").innerHTML = `<div class="empty">Error loading review queue: ${e.message}</div>`;
+  }
+}
+
+function renderReviewCard(record) {
+  const conf = parseFieldConfidence(record.field_confidence);
+  const isDuplicate = (record.duplicate_status || "").includes("duplicate");
+  const isLowConf = record.overall_confidence < 65;
+  const hasConflict = !!record.validation_warnings;
+  const priority = isDuplicate ? "high" : (isLowConf ? "high" : (hasConflict ? "medium" : "low"));
+  const priorityLabel = isDuplicate ? "CRITICAL: Duplicate Warning" : (isLowConf ? "HIGH: Low Confidence" : (hasConflict ? "MEDIUM: Validation Alert" : "NORMAL: Pending Verification"));
+
+  let fieldsHtml = "";
+  for (const [key, label] of Object.entries(FIELD_LABELS)) {
+    const c = conf[key] ?? 0;
+    fieldsHtml += `<div class="field-row">
+      <label>${label}</label>
+      <input id="f_${record.id}_${key}" value="${record[key] || ''}" class="${confClass(c)}">
+      <span class="conf-pill ${confClass(c)}">${c.toFixed(0)}%</span>
+    </div>`;
+  }
+
+  const warn = record.validation_warnings ? `<div class="warn">⚠ ${record.validation_warnings}</div>` : "";
+  const dupWarn = isDuplicate ? `<div class="duplicate-warning">
+    <b>⚠ Possible duplicate record detected</b><br>
+    Record shares survey number or khata details with an existing landholder.
+    Verify whether this is a genuine duplicate or a separate sub-division.
+  </div>` : "";
+
+  return `<div class="card review-card priority-${priority}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-light);">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="badge ${priority === 'high' ? 'rejected' : (priority === 'medium' ? 'pending' : 'verified')}">${priorityLabel}</span>
+        ${sourceBadge(record.source)}
+      </div>
+      <span class="muted">Survey No: <b>${record.survey_number || record.khasra_no || '—'}</b> | Village: <b>${record.village || '—'}</b></span>
+    </div>
+    <div class="review-layout">
+      <div>
+        ${record.filename ? `<img src="${API}/uploads/${record.filename}" alt="Document scan">` : `<div class="empty" style="padding:20px;">No document image<br><small>(Demo record)</small></div>`}
+        <div style="margin-top:8px;">
+          <span class="muted">Record: <b>${record.record_id_str || '#' + record.id}</b></span><br>
+          <span class="muted">Language: <b>${record.language || '—'}</b></span><br>
+          <span class="muted">Doc Type: <b>${record.document_type || '—'}</b></span>
+        </div>
+      </div>
+      <div>
+        <div class="toolbar" style="margin-bottom:8px;">
+          <b>${record.record_id_str || 'Record #' + record.id} — ${record.owner_name || 'Unknown'}</b>
+          <span class="muted">OCR Confidence: <b>${record.overall_confidence}%</b></span>
+        </div>
+        ${dupWarn}${warn}
+        ${fieldsHtml}
+        <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button class="ghost" onclick="openRecordModal(${record.id})">📋 Review</button>
+          <button class="ghost" onclick="openGeminiChatForRecord(${record.id})" style="color:var(--navy);font-weight:600;">💬 Ask AI</button>
+          <button class="success" onclick="approveRecord(${record.id})">✓ Approve</button>
+          <button class="danger" onclick="rejectRecord(${record.id})">✕ Reject</button>
+          <button class="primary" onclick="submitReview(${record.id})">Save Edits &amp; Verify</button>
+          ${isDuplicate ? `
+            <button class="ghost" onclick="openRecordModal(${record.id})" style="color:#1565c0;">View Existing Record</button>
+            <button class="ghost" onclick="confirmDuplicate(${record.id})" style="color:#7b1fa2;font-weight:600;">Confirm Duplicate</button>
+            <button class="ghost" onclick="clearDuplicate(${record.id})" style="color:#1f7a3d;font-weight:600;">Mark as Different Record</button>
+          ` : ""}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function submitReview(id) {
+  const corrections = {};
+  for (const key of Object.keys(FIELD_LABELS)) {
+    const el = document.getElementById(`f_${id}_${key}`);
+    if (el) corrections[key] = el.value;
+  }
+  try {
+    await fetch(`${API}/records/${id}/review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ corrections, reviewed_by: "officer_demo" }),
+    });
+    loadReviewQueue();
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+async function approveRecord(id) {
+  try {
+    await fetch(`${API}/records/${id}/approve`, { method: "POST" });
+    loadReviewQueue();
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+async function rejectRecord(id) {
+  try {
+    await fetch(`${API}/records/${id}/reject`, { method: "POST" });
+    loadReviewQueue();
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+async function confirmDuplicate(id) {
+  try {
+    await fetch(`${API}/records/${id}/confirm-duplicate`, { method: "POST" });
+    loadReviewQueue();
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+async function clearDuplicate(id) {
+  try {
+    await fetch(`${API}/records/${id}/clear-duplicate`, { method: "POST" });
+    loadReviewQueue();
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+document.getElementById("refreshDashBtn").onclick = loadDashboard;
+let allDashboardRecords = [];
+
+async function loadDashboard() {
+  try {
+    const [statsRes, recordsRes] = await Promise.all([
+      fetch(API + "/dashboard/statistics"),
+      fetch(API + "/records?limit=500"),
+    ]);
+    const stats = await statsRes.json();
+    allDashboardRecords = await recordsRes.json();
+
+    renderDashboardStats(stats);
+    renderDashboardTable(allDashboardRecords);
+  } catch (e) {
+    document.getElementById("dashboardStats").innerHTML = `<div class="empty">Error loading dashboard: ${e.message}</div>`;
+  }
+}
+
+function renderDashboardStats(s) {
+  document.getElementById("dashboardStats").innerHTML = `
+    <div class="stat-card blue"><div class="stat-label">Total Landholders</div><div class="stat-value">${s.total}</div><div class="stat-sub">Digitized Records</div></div>
+    <div class="stat-card green"><div class="stat-label">Submitted</div><div class="stat-value">${s.submitted}</div><div class="stat-sub">${s.submission_rate}% submission rate</div></div>
+    <div class="stat-card green"><div class="stat-label">Verified</div><div class="stat-value">${s.verified}</div><div class="stat-sub">${s.verification_rate}% verification rate</div></div>
+    <div class="stat-card orange"><div class="stat-label">Under Review</div><div class="stat-value">${s.under_review}</div></div>
+  
+    <div class="stat-card blue"><div class="stat-label">Avg OCR Confidence</div><div class="stat-value">${s.avg_confidence}%</div></div>
+    <div class="stat-card green"><div class="stat-label">High Confidence (≥85%)</div><div class="stat-value">${s.high_confidence}</div></div>
+    <div class="stat-card red"><div class="stat-label">Low Confidence (<65%)</div><div class="stat-value">${s.low_confidence}</div></div>
+  `;
+}
+
+function filterDashboardByDuplicates() {
+  const dupRecords = allDashboardRecords.filter(r =>
+    r.duplicate_status === "possible_duplicate" ||
+    r.duplicate_status === "confirmed_duplicate" ||
+    (r.validation_warnings && r.validation_warnings.toLowerCase().includes("duplicate"))
+  );
+  const searchInput = document.getElementById("dashSearch");
+  if (searchInput) searchInput.value = "duplicate";
+  renderDashboardTable(dupRecords);
+}
+
+function renderDashboardTable(records) {
+  const tbody = document.querySelector("#dashboardTable tbody");
+  if (!records.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:35px;font-size:13.5px;">No records yet. Upload land records in the <b>Upload & Process</b> tab to digitize and view them here.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = records.map(r => `
+    <tr class="clickable" onclick="openRecordModal(${r.id})">
+      <td><b>${r.record_id_str || 'REC' + String(r.id).padStart(3, '0')}</b></td>
+      <td>${sourceBadge(r.source)}</td>
+      <td>${r.owner_name || "—"}</td>
+      <td>${r.survey_number || r.khasra_no || "—"}</td>
+      <td>${r.village || "—"}</td>
+      <td><span class="conf-pill ${confClass(r.ocr_confidence || r.overall_confidence)}">${(r.ocr_confidence || r.overall_confidence || 0).toFixed(0)}%</span></td>
+      <td>${verificationBadge(r.verification_status)} ${duplicateBadge(r.duplicate_status)}</td>
+    </tr>`).join("");
+}
+
+async function searchDashboard() {
+  const term = document.getElementById("dashSearch").value.trim();
+  if (!term) { renderDashboardTable(allDashboardRecords); return; }
+  const lowerTerm = term.toLowerCase();
+
+  if (lowerTerm === "duplicate" || lowerTerm === "duplicates") {
+    filterDashboardByDuplicates();
+    return;
+  }
+
+  let filtered = allDashboardRecords.filter(r =>
+    (r.owner_name || "").toLowerCase().includes(lowerTerm) ||
+    (r.survey_number || "").toLowerCase().includes(lowerTerm) ||
+    (r.khasra_no || "").toLowerCase().includes(lowerTerm) ||
+    (r.khata_no || "").toLowerCase().includes(lowerTerm) ||
+    (r.record_id_str || "").toLowerCase().includes(lowerTerm) ||
+    (r.village || "").toLowerCase().includes(lowerTerm) ||
+    (r.father_name || "").toLowerCase().includes(lowerTerm) ||
+    (r.language || "").toLowerCase().includes(lowerTerm) ||
+    (r.duplicate_status || "").toLowerCase().includes(lowerTerm)
+  );
+
+  // Fallback to backend search for deep / unicode matching
+  if (!filtered.length) {
+    try {
+      const res = await fetch(API + "/records?search=" + encodeURIComponent(term));
+      if (res.ok) {
+        filtered = await res.json();
+      }
+    } catch (e) {
+      console.error("Backend search error:", e);
+    }
+  }
+  renderDashboardTable(filtered);
+}
+
+// Search on Enter key
+document.getElementById("dashSearch").addEventListener("keyup", e => {
+  if (e.key === "Enter") searchDashboard();
+});
+
+// ============================================================
+// GLOBAL UNIVERSAL SEARCH (NAME, SURVEY NO, KHATA, VILLAGE)
+// ============================================================
+let globalSearchTimeout = null;
+
+function clearGlobalSearch() {
+  const input = document.getElementById("globalSearchInput");
+  const clearBtn = document.getElementById("globalSearchClear");
+  const dropdown = document.getElementById("globalSearchResults");
+  if (input) input.value = "";
+  if (clearBtn) clearBtn.style.display = "none";
+  if (dropdown) {
+    dropdown.innerHTML = "";
+    dropdown.style.display = "none";
+  }
+}
+
+async function handleGlobalSearch(query) {
+  const clearBtn = document.getElementById("globalSearchClear");
+  const dropdown = document.getElementById("globalSearchResults");
+  if (!dropdown) return;
+
+  const term = (query || "").trim();
+  if (clearBtn) clearBtn.style.display = term ? "inline-block" : "none";
+
+  if (!term) {
+    dropdown.innerHTML = "";
+    dropdown.style.display = "none";
+    return;
+  }
+
+  if (globalSearchTimeout) clearTimeout(globalSearchTimeout);
+  globalSearchTimeout = setTimeout(async () => {
+    try {
+      dropdown.style.display = "block";
+      dropdown.innerHTML = `<div style="padding:14px; text-align:center; color:#777; font-size:12.5px;">Searching records across database…</div>`;
+
+      const res = await fetch(`${API}/records/search/global?q=${encodeURIComponent(term)}`);
+      if (!res.ok) throw new Error("Search failed");
+      const results = await res.json();
+
+      if (!results.length) {
+        dropdown.innerHTML = `
+          <div class="search-dropdown-header"><span>No Matching Records Found</span></div>
+          <div style="padding:16px; text-align:center; color:#888; font-size:12.5px;">
+            No records matched "<b>${term}</b>".<br>
+            <small>Try searching by Owner Name (e.g. Ramesh, వెంకటేశ్వర), Survey No (e.g. 124/2), Khata No, or Village.</small>
+          </div>`;
+        return;
+      }
+
+      let html = `<div class="search-dropdown-header">
+        <span>Found ${results.length} record${results.length > 1 ? 's' : ''}</span>
+        <span style="font-weight:normal; text-transform:none; cursor:pointer; color:var(--navy);" onclick="jumpToDashboardSearch('${encodeURIComponent(term)}')">View all in Dashboard →</span>
+      </div>`;
+
+      for (const r of results.slice(0, 8)) {
+        const sNo = r.survey_number || r.khasra_no || "—";
+        const khata = r.khata_no ? `Khata: <b>${r.khata_no}</b>` : "";
+        const father = r.father_name ? `S/o <b>${r.father_name}</b>` : "";
+        const area = r.area_hectare ? `• <b>${r.area_hectare}</b> Ha/Acres` : "";
+        const lang = r.language ? `<span class="badge" style="font-size:10.5px; padding:2px 6px;">${r.language}</span>` : "";
+
+        html += `
+          <div class="search-item" onclick="selectSearchResult(${r.id})">
+            <div class="search-item-top">
+              <span class="search-item-name">${r.owner_name || 'Unnamed Record'}</span>
+              <div style="display:flex; gap:6px; align-items:center;">
+                ${lang}
+                <span class="badge ${r.submission_status === 'submitted' ? 'verified' : (r.submission_status === 'pending' ? 'pending' : 'rejected')}" style="font-size:10px; padding:2px 6px;">
+                  ${r.record_id_str || '#' + r.id}
+                </span>
+              </div>
+            </div>
+            <div class="search-item-details">
+              <span>Survey/Khasra: <b>${sNo}</b></span>
+              ${khata ? `<span>${khata}</span>` : ""}
+              ${father ? `<span>${father}</span>` : ""}
+              <span>Village: <b>${r.village || '—'}</b></span>
+              ${area ? `<span>${area}</span>` : ""}
+            </div>
+          </div>
+        `;
+      }
+
+      dropdown.innerHTML = html;
+    } catch (e) {
+      dropdown.innerHTML = `<div style="padding:12px; color:#d93025; font-size:12px;">Search error: ${e.message}</div>`;
+    }
+  }, 200);
+}
+
+function selectSearchResult(id) {
+  clearGlobalSearch();
+  openRecordModal(id);
+}
+
+function jumpToDashboardSearch(encodedTerm) {
+  const term = decodeURIComponent(encodedTerm);
+  clearGlobalSearch();
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
+  const dashBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+  if (dashBtn) dashBtn.classList.add("active");
+  const dashSec = document.getElementById("tab-dashboard");
+  if (dashSec) dashSec.style.display = "block";
+
+  const dashInput = document.getElementById("dashSearch");
+  if (dashInput) {
+    dashInput.value = term;
+    searchDashboard();
+  }
+}
+
+// Close global search dropdown when clicking outside
+document.addEventListener("click", e => {
+  const wrapper = document.querySelector(".global-search-wrapper");
+  const dropdown = document.getElementById("globalSearchResults");
+  if (wrapper && dropdown && !wrapper.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
+
+// Search on Enter key in Global Search
+document.getElementById("globalSearchInput")?.addEventListener("keyup", e => {
+  if (e.key === "Enter") {
+    const term = e.target.value.trim();
+    if (term) jumpToDashboardSearch(encodeURIComponent(term));
+  }
+});
+
+// ============================================================
+// DATASET BENCHMARKS MODAL
+// ============================================================
+async function showDatasetModal() {
+  try {
+    const res = await fetch(`${API}/models/handwriting/datasets`);
+    const datasets = await res.json();
+    
+    let html = `
+      <div style="font-size:13px; color:#555; margin-bottom:14px;">
+        The system addresses Indian land-record data scarcity by pairing benchmark legal/handwriting datasets with synthetic Bhoomi and e-Dharti mock records:
+      </div>
+      <div style="display:grid; gap:12px;">
+    `;
+
+    for (const [key, ds] of Object.entries(datasets)) {
+      html += `
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <b style="color:var(--navy); font-size:13.5px;">${ds.name}</b>
+            <span class="badge verified" style="font-size:11px;">${ds.target_model}</span>
+          </div>
+          <div style="font-size:12px; color:#444; margin-bottom:4px;"><b>Domain:</b> ${ds.domain}</div>
+          <div style="font-size:12px; color:#666; margin-bottom:4px;"><b>Pipeline Role:</b> ${ds.role_in_pipeline}</div>
+          <div style="font-size:11.5px; color:#1f7a3d;"><b>Benchmark:</b> ${ds.benchmark_cer ? 'CER ' + ds.benchmark_cer : (ds.benchmark_f1 ? 'F1-Score ' + ds.benchmark_f1 : 'Calibrated')}</div>
+        </div>
+      `;
+    }
+    html += `</div>`;
+
+    document.getElementById("modalTitle").textContent = "🏛️ ML Training & Benchmark Datasets";
+    document.getElementById("modalBody").innerHTML = html;
+    document.getElementById("modalActions").innerHTML = `<button class="primary" onclick="closeModal()">Close</button>`;
+    document.getElementById("recordModal").style.display = "flex";
+  } catch (e) {
+    alert("Could not load benchmarks: " + e.message);
+  }
+}
+
+// ============================================================
+// MAP VIEW
+// ============================================================
+document.getElementById("refreshMapBtn").onclick = loadMap;
+let leafletMap = null;
+let mapMarkersLayer = null;
+let currentMapFilter = "all";
+let mapRecordsCache = [];
+
+function initMap() {
+  if (leafletMap) return;
+  // Guntur district, AP - matches seed_data.py coordinates
+  leafletMap = L.map("mapView").setView([16.305, 80.437], 13);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(leafletMap);
+  mapMarkersLayer = L.layerGroup().addTo(leafletMap);
+
+  // Add legend control
+  const legend = L.control({ position: "bottomright" });
+  legend.onAdd = function() {
+    const div = L.DomUtil.create("div", "map-legend");
+    div.innerHTML = `
+      <div class="map-legend-title">Legend</div>
+      <div class="map-legend-item"><span class="map-legend-dot" style="background:#1f7a3d;"></span> Verified</div>
+      <div class="map-legend-item"><span class="map-legend-dot" style="background:#e8792e;"></span> Pending Review</div>
+    `;
+    return div;
+  };
+  legend.addTo(leafletMap);
+}
+
+async function loadMap() {
+  initMap();
+  // The map tab is hidden (display:none) until the user clicks it, and
+  // Leaflet measures its container's size at init time. If that happens
+  // while the tab is still hidden the map ends up with a zero/garbage size
+  // and renders as a gray or broken tile grid. Re-measuring after the tab
+  // is actually visible (and again after tiles/markers settle) fixes it.
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 0);
+  requestAnimationFrame(() => { if (leafletMap) leafletMap.invalidateSize(); });
+  await loadMapFilters();
+  await applyMapFilters();
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 150);
+}
+
+async function loadMapFilters() {
+  try {
+    const res = await fetch(API + "/records/filters");
+    const filters = await res.json();
+
+    populateSelect("mapStateFilter", filters.states || [], "All States");
+    populateSelect("mapDistrictFilter", filters.districts || [], "All Districts");
+    populateSelect("mapVillageFilter", filters.villages || [], "All Villages");
+    populateSelect("mapLangFilter", filters.languages || [], "All Languages");
+    populateSelect("mapDocTypeFilter", filters.document_types || [], "All Document Types");
+  } catch (e) { console.error("Filter load error:", e); }
+}
+
+function populateSelect(id, values, defaultLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${defaultLabel}</option>` +
+    (values || []).map(v => `<option value="${v}">${v}</option>`).join("");
+  if (current) sel.value = current;
+}
+
+function setMapFilter(filter, btn) {
+  currentMapFilter = filter;
+  document.querySelectorAll("#statusFilterGroup .filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  applyMapFilters();
+}
+
+async function applyMapFilters() {
+  initMap();
+  mapMarkersLayer.clearLayers();
+
+  // Build query params. Verification status (verified/pending review) is
+  // filtered client-side below since it isn't a submission-pipeline concept
+  // the backend indexes on — every uploaded record's `submission_status`
+  // ends up "submitted" regardless of whether it's actually been verified,
+  // which is why filtering/coloring by submission_status hid not-yet-verified
+  // records instead of showing them in orange.
+  const params = new URLSearchParams();
+  const state = document.getElementById("mapStateFilter") ? document.getElementById("mapStateFilter").value : "";
+  const district = document.getElementById("mapDistrictFilter") ? document.getElementById("mapDistrictFilter").value : "";
+  const village = document.getElementById("mapVillageFilter") ? document.getElementById("mapVillageFilter").value : "";
+  const lang = document.getElementById("mapLangFilter") ? document.getElementById("mapLangFilter").value : "";
+  const docType = document.getElementById("mapDocTypeFilter") ? document.getElementById("mapDocTypeFilter").value : "";
+  if (state) params.set("state", state);
+  if (district) params.set("district", district);
+  if (village) params.set("village", village);
+  if (lang) params.set("language", lang);
+  if (docType) params.set("document_type", docType);
+
+  try {
+    const res = await fetch(API + "/map/records?" + params.toString());
+    let records = await res.json();
+
+    if (currentMapFilter === "verified") {
+      records = records.filter(r => ["verified", "published"].includes(r.verification_status));
+    } else if (currentMapFilter === "pending_review") {
+      records = records.filter(r => !["verified", "published"].includes(r.verification_status));
+    }
+
+    mapRecordsCache = records;
+    renderMapMarkers(mapRecordsCache);
+    renderMapStats(mapRecordsCache);
+  } catch (e) {
+    console.error("Map load error:", e);
+  }
+}
+
+function getMarkerColor(verificationStatus) {
+  return ["verified", "published"].includes(verificationStatus) ? "#1f7a3d" : "#e8792e";
+}
+
+function renderMapMarkers(records) {
+  mapMarkersLayer.clearLayers();
+  let bounds = [];
+
+  records.forEach(r => {
+    if (!r.latitude || !r.longitude) return;
+    const color = getMarkerColor(r.verification_status);
+    const marker = L.circleMarker([r.latitude, r.longitude], {
+      radius: 7,
+      color: "#fff",
+      weight: 2,
+      fillColor: color,
+      fillOpacity: 0.9,
+    }).addTo(mapMarkersLayer);
+
+    marker.bindPopup(`
+      <div class="record-popup">
+        <b>${r.owner_name || "Unknown"}</b>
+        <div class="popup-row"><span class="popup-label">Record ID</span><span class="popup-value">${r.record_id_str || '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">Survey No.</span><span class="popup-value">${r.survey_number || '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">Village</span><span class="popup-value">${r.village || '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">District/State</span><span class="popup-value">${r.district || '—'}${r.state ? ', ' + r.state : ''}</span></div>
+        <div class="popup-row"><span class="popup-label">Area</span><span class="popup-value">${r.area_hectare || '—'} acres</span></div>
+        <div class="popup-row"><span class="popup-label">Land Type</span><span class="popup-value">${r.land_type || '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">Verification</span><span class="popup-value">${verificationBadge(r.verification_status)}</span></div>
+        ${currentRole === 'officer' ? `<div class="popup-row"><span class="popup-label">OCR Confidence</span><span class="popup-value"><span class="conf-pill ${confClass(r.ocr_confidence)}">${(r.ocr_confidence || 0).toFixed(0)}%</span></span></div>` : ''}
+        <div class="popup-row"><span class="popup-label">Language</span><span class="popup-value">${r.language || '—'}</span></div>
+        <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+          <a href="#" onclick="event.preventDefault();openRecordModal(${r.record_id})" style="font-size:12px; font-weight:700; color:var(--navy);">
+            ${currentRole === 'citizen' ? '📜 View Land Record (ROR) →' : 'Full Record →'}
+          </a>
+          <a href="#" onclick="event.preventDefault();openGeminiChatForRecord(${r.record_id})" style="font-size:12px;color:var(--navy);font-weight:600;">💬 Ask AI</a>
+        </div>
+      </div>
+    `);
+    bounds.push([r.latitude, r.longitude]);
+  });
+
+  leafletMap.invalidateSize();
+  if (bounds.length > 0) {
+    leafletMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+  }
+}
+
+function renderMapStats(records) {
+  const total = records.length;
+  const verified = records.filter(r => ["verified", "published"].includes(r.verification_status)).length;
+  const pendingReview = total - verified;
+  const duplicates = records.filter(r => (r.duplicate_status || "").includes("duplicate")).length;
+  const highConf = records.filter(r => r.ocr_confidence >= 85).length;
+  const lowConf = records.filter(r => r.ocr_confidence > 0 && r.ocr_confidence < 65).length;
+
+  document.getElementById("mapStatsPanel").innerHTML = `  
+    <div class="map-stat"> 
+      <div class="map-stat-value">${total}</div> 
+      <div class="map-stat-label">Total Landholders</div> 
+    </div> 
+  `; 
+
+}
+
+// ============================================================
+// RECORD DETAIL MODAL
+// ============================================================
+async function openRecordModal(id) {
+  const modal = document.getElementById("recordModal");
+  modal.style.display = "flex";
+  document.getElementById("modalBody").innerHTML = '<div class="empty">Loading record…</div>';
+  document.getElementById("modalActions").innerHTML = "";
+
+  try {
+    const [recordRes, auditRes] = await Promise.all([
+      fetch(`${API}/records/${id}`),
+      fetch(`${API}/audit/${id}`),
+    ]);
+    const record = await recordRes.json();
+    const audit = await auditRes.json();
+
+    // Try to get validation results
+    let validation = null;
+    try {
+      const valRes = await fetch(`${API}/records/${id}/validate`, { method: "POST" });
+      validation = await valRes.json();
+    } catch (e) { /* validation optional */ }
+
+    document.getElementById("modalTitle").textContent = `${record.record_id_str || 'Record #' + record.id} — ${record.owner_name || 'Unknown'}`;
+    renderRecordDetail(record, audit, validation);
+  } catch (e) {
+    document.getElementById("modalBody").innerHTML = `<div class="empty">Error loading record: ${e.message}</div>`;
+  }
+}
+
+function renderCitizenRecordDetail(record) {
+  document.getElementById("modalTitle").textContent = "Official Land Record Extract (Record of Rights / ROR)";
+  const isVerified = ["verified", "published"].includes(record.verification_status);
+  const sNo = record.survey_number || record.khasra_no || "—";
+  const father = record.father_name || "—";
+  const loc = [record.village, record.mandal || record.tehsil, record.district, record.state].filter(Boolean).join(", ") || "—";
+
+  let html = `
+    <div class="citizen-certificate-card">
+      <div class="citizen-cert-tricolor">
+        <div style="flex:1; background:#FF9933; height:4.5px;"></div>
+        <div style="flex:1; background:#ffffff; height:4.5px;"></div>
+        <div style="flex:1; background:#138808; height:4.5px;"></div>
+      </div>
+      <div class="citizen-cert-header">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; opacity:0.9;">GOVERNMENT OF INDIA • DIGITAL INDIA LAND RECORDS MODERNIZATION PROGRAMME</div>
+        <h3 style="font-size:18px; font-weight:800; margin:4px 0;">Official Land Information Slip / Khatauni Extract</h3>
+        <div style="font-size:12px; opacity:0.85;">Department of Land Resources · Revenue Administration · Citizen Services</div>
+      </div>
+      <div class="citizen-cert-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-size:11.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; font-weight:600;">Record Identification Number</div>
+            <div style="font-size:16px; font-weight:800; color:#1a3a5c;">${record.record_id_str || 'REC#' + record.id}</div>
+          </div>
+          <div class="citizen-cert-seal">
+            ${isVerified ? '✓ Digitally Verified by Land Revenue Department' : '⏳ Verification In Progress (Provisional)'}
+          </div>
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:13px;">
+          <tbody>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; width:36%; background:#fafbfc;">Registered Landholder</td>
+              <td style="padding:9px 12px; font-weight:700; color:#0f172a; font-size:14px;">${record.owner_name || '—'}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Father / Husband Name</td>
+              <td style="padding:9px 12px;">${father}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Survey / Khasra No.</td>
+              <td style="padding:9px 12px; font-weight:700; color:#1a3a5c; font-size:14px;">${sNo}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Khata / Account Number</td>
+              <td style="padding:9px 12px; font-weight:600;">${record.khata_no || '—'}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Total Land Extent / Area</td>
+              <td style="padding:9px 12px; font-weight:700;">${record.area_hectare ? `${record.area_hectare} Hectares / Acres` : '—'}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Land Classification</td>
+              <td style="padding:9px 12px;">${record.classification || record.land_type || 'Agricultural / Dry Land'}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Location / Administrative Area</td>
+              <td style="padding:9px 12px;">${loc}</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:9px 12px; color:#64748b; font-weight:600; background:#fafbfc;">Geographical Coordinates</td>
+              <td style="padding:9px 12px; font-size:12px; color:#475569;">Lat: ${record.latitude || '—'}, Lng: ${record.longitude || '—'} <span class="muted">(Village parcel centroid)</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${record.filename ? `
+          <div style="margin-top:14px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Digitized Source Document Scan</div>
+            <img src="${API}/uploads/${record.filename}" alt="Document scan" style="max-height:180px; border-radius:6px; border:1px solid #cbd5e1; object-fit:contain;">
+          </div>
+        ` : ''}
+
+        <div style="margin-top:16px; padding:12px 14px; background:#f8fafc; border-radius:8px; font-size:11.5px; color:#64748b; border:1px solid #e2e8f0; line-height:1.5;">
+          ℹ <b>Citizen Information Notice:</b> This digital extract is generated from the DILRMP National Land Records Modernization Database. For certified legal copies or boundary demarcations, please contact your local Tahsildar / Mandal Revenue Office.
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("modalBody").innerHTML = html;
+
+  let actions = `<button class="ghost" onclick="closeModal()">Close</button>`;
+  actions += `<button class="primary" onclick="window.print()" style="background:#1a3a5c;">🖨️ Print / Download Land Certificate (ROR)</button>`;
+  actions += `<button class="ghost" onclick="closeModal(); openGeminiChatForRecord(${record.id});" style="color:var(--navy); font-weight:600;">💬 Ask AI Assistant</button>`;
+  document.getElementById("modalActions").innerHTML = actions;
+}
+
+function renderRecordDetail(record, audit, validation) {
+  if (currentRole === "citizen") {
+    renderCitizenRecordDetail(record);
+    return;
+  }
+  const conf = parseFieldConfidence(record.field_confidence);
+  const stageOrder = ["not_submitted", "uploaded", "ocr_processing", "field_extraction", "validation", "officer_review", "verified", "published"];
+  const stageLabels = {
+    not_submitted: "Not Submitted", uploaded: "Uploaded", ocr_processing: "OCR Processing",
+    field_extraction: "Field Extraction", validation: "Validation", officer_review: "Officer Review",
+    verified: "Verified", published: "Published"
+  };
+  const currentStageIdx = stageOrder.indexOf(record.processing_stage || "not_submitted");
+
+  // Pipeline visualization
+  let pipelineHtml = '<div class="pipeline-flow">';
+  stageOrder.forEach((stage, i) => {
+    let cls = "pipeline-stage";
+    if (i < currentStageIdx) cls += " completed";
+    else if (i === currentStageIdx) cls += " current";
+    else cls += " not-reached";
+    const icon = i < currentStageIdx ? "✓" : (i === currentStageIdx ? "●" : "○");
+    pipelineHtml += `<span class="${cls}">${icon} ${stageLabels[stage]}</span>`;
+    if (i < stageOrder.length - 1) pipelineHtml += '<span class="pipeline-arrow">→</span>';
+  });
+  pipelineHtml += '</div>';
+
+  // Record info
+  let html = `
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        ${submissionBadge(record.submission_status)}
+        ${verificationBadge(record.verification_status)}
+        ${duplicateBadge(record.duplicate_status)}
+        <span class="muted">OCR: <b>${(record.ocr_confidence || record.overall_confidence || 0).toFixed(1)}%</b></span>
+        <span class="muted">Language: <b>${record.language || '—'}</b></span>
+        <span class="muted">Doc Type: <b>${record.document_type || '—'}</b></span>
+        <span class="muted">Source: <b>${record.document_source || '—'}</b></span>
+      </div>
+      <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">Processing Stage</h4>
+      ${pipelineHtml}
+    </div>
+  `;
+
+  // Document preview & extracted fields side by side
+  html += `<div class="review-layout">`;
+
+  // Left: Document preview
+  html += `<div>`;
+  if (record.filename) {
+    html += `<img src="${API}/uploads/${record.filename}" alt="Document preview" style="margin-bottom:12px;">`;
+  } else {
+    html += `<div style="background:#f5f5f5;padding:40px;text-align:center;border-radius:8px;color:#999;margin-bottom:12px;">
+      <div style="font-size:28px;margin-bottom:8px;">📄</div>
+      No document image available<br><small>(Demo/manually created record)</small>
+    </div>`;
+  }
+
+  // Location info
+  html += `<div style="background:#f8f9fa;padding:12px;border-radius:8px;font-size:12.5px;">
+    <b>Location Details</b><br>
+    Village: ${record.village || '—'}<br>
+    Mandal/Taluk: ${record.mandal || record.tehsil || '—'}<br>
+    District: ${record.district || '—'}<br>
+    State: ${record.state || '—'}<br>
+    <span class="muted">Lat: ${record.latitude || '—'}, Lng: ${record.longitude || '—'}</span><br>
+    <span class="muted" style="font-style:italic;">Illustrative coordinates — not surveyed</span>
+  </div>`;
+  html += `</div>`;
+
+  // Right: Fields
+  html += `<div>`;
+
+  // Warnings
+  if (record.validation_warnings) {
+    html += `<div class="warn">⚠ ${record.validation_warnings}</div>`;
+  }
+  if ((record.duplicate_status || "").includes("duplicate")) {
+    html += `<div class="duplicate-warning">🔍 Duplicate Status: ${record.duplicate_status.replace(/_/g, " ")}</div>`;
+  }
+
+  // Extracted fields table — only fields actually present in the source document
+  html += `<h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Extracted Fields</h4>`;
+  for (const [key, label] of Object.entries(FIELD_LABELS)) {
+    const c = conf[key] ?? (record[key] ? 80 : 0);
+    const val = record[key] || "";
+    html += `<div class="field-row">
+      <label>${label}</label>
+      <input id="d_${record.id}_${key}" value="${val}" class="${confClass(c)}">
+      <span class="conf-pill ${confClass(c)}">${c > 0 ? c.toFixed(0) + "%" : "—"}</span>
+    </div>`;
+  }
+  html += `<div id="recordSaveStatus" class="muted" style="margin-top:4px; font-size:12px;"></div>`;
+
+  html += `</div></div>`;
+
+  // Validation Results
+  if (validation && validation.results) {
+    html += `<div style="margin-top:18px;">
+      <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Cross-Validation Results</h4>
+      <div style="display:flex;gap:12px;margin-bottom:10px;">
+        <span class="badge verified">✓ ${validation.summary?.passed || 0} Passed</span>
+        <span class="badge pending">⚠ ${validation.summary?.warnings || 0} Warnings</span>
+        <span class="badge not-submitted">✕ ${validation.summary?.conflicts || 0} Conflicts</span>
+      </div>
+      <div class="validation-results">
+        ${validation.results.map(v => `
+          <div class="validation-row">
+            <span class="validation-icon">${v.icon}</span>
+            <span class="validation-field">${v.field}</span>
+            <span class="validation-message">${v.message}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>`;
+  }
+
+  // Audit Trail
+  if (audit && audit.length) {
+    html += `<div style="margin-top:18px;">
+      <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">Audit Trail</h4>
+      <div class="audit-timeline">
+        ${audit.map(a => `
+          <div class="audit-entry">
+            <div class="audit-time">${formatDate(a.timestamp)}</div>
+            <div class="audit-action">${(a.action || "").replace(/_/g, " ")}</div>
+            <div class="audit-details">${a.details || ""}</div>
+            <div class="audit-by">By: ${a.performed_by || "system"}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>`;
+  }
+
+  // Metadata
+  html += `<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light);">
+    <div class="muted">
+      Record ID: ${record.record_id_str || '#' + record.id} ·
+      Created: ${formatDate(record.created_at)} ·
+      Updated: ${formatDate(record.last_updated)}
+      ${record.reviewed_by ? ` · Reviewed by: ${record.reviewed_by}` : ''}
+      ${record.reviewed_at ? ` at ${formatDate(record.reviewed_at)}` : ''}
+    </div>
+  </div>`;
+
+  document.getElementById("modalBody").innerHTML = html;
+
+  // Actions
+  const isPending = record.status === "pending_review" || record.verification_status === "pending" || record.verification_status === "under_review";
+  const isVerified = record.verification_status === "verified";
+
+  let actions = `<button class="ghost" onclick="closeModal()">Close</button>`;
+  actions += `<button class="primary" onclick="saveRecordDetailEdits(${record.id})">💾 Save Changes</button>`;
+  if (isPending) {
+    actions += `<button class="success" onclick="approveAndRefresh(${record.id})">✓ Approve</button>`;
+    actions += `<button class="danger" onclick="rejectAndRefresh(${record.id})">✕ Reject</button>`;
+  }
+  if (isVerified) {
+    actions += `<button class="primary" onclick="publishAndRefresh(${record.id})">📜 Publish</button>`;
+  }
+  actions += `<button class="ghost" onclick="closeModal(); openGeminiChatForRecord(${record.id});" style="color:var(--navy);font-weight:600;">💬 Ask AI Assistant</button>`;
+  document.getElementById("modalActions").innerHTML = actions;
+}
+
+async function saveRecordDetailEdits(id) {
+  const statusEl = document.getElementById("recordSaveStatus");
+  const payload = {};
+  for (const key of Object.keys(FIELD_LABELS)) {
+    const el = document.getElementById(`d_${id}_${key}`);
+    if (el) payload[key] = el.value;
+  }
+  try {
+    const res = await fetch(`${API}/records/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    if (statusEl) {
+      statusEl.textContent = "✓ Changes saved";
+      statusEl.style.color = "var(--green)";
+    }
+    refreshCurrentTab();
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = "Error saving: " + e.message;
+      statusEl.style.color = "var(--red)";
+    }
+  }
+}
+
+function closeModal() {
+  document.getElementById("recordModal").style.display = "none";
+}
+
+async function approveAndRefresh(id) {
+  await fetch(`${API}/records/${id}/approve`, { method: "POST" });
+  closeModal();
+  refreshCurrentTab();
+}
+
+async function rejectAndRefresh(id) {
+  await fetch(`${API}/records/${id}/reject`, { method: "POST" });
+  closeModal();
+  refreshCurrentTab();
+}
+
+async function publishAndRefresh(id) {
+  await fetch(`${API}/records/${id}/publish`, { method: "POST" });
+  closeModal();
+  refreshCurrentTab();
+}
+
+function refreshCurrentTab() {
+  const activeTab = document.querySelector(".tab-btn.active");
+  if (activeTab) {
+    const tab = activeTab.dataset.tab;
+    if (tab === "review") loadReviewQueue();
+    if (tab === "dashboard") loadDashboard();
+    if (tab === "map") loadMap();
+  }
+}
+
+// Escape key closes modal
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ============================================================
+// GEMINI RECORD CHATBOT
+// ============================================================
+let activeChatRecordId = null;
+let chatRecordsCache = [];
+
+function toggleGeminiChat(recordId = null) {
+  const win = document.getElementById("geminiChatWindow");
+  if (!win) return;
+  const isOpening = win.style.display !== "flex";
+  win.style.display = isOpening ? "flex" : "none";
+
+  if (isOpening) {
+    loadChatRecordOptions(recordId);
+    setTimeout(() => {
+      document.getElementById("geminiChatInput")?.focus();
+    }, 150);
+  }
+}
+
+async function loadChatRecordOptions(preferredRecordId = null) {
+  const sel = document.getElementById("geminiRecordSelect");
+  if (!sel) return;
+
+  try {
+    if (!chatRecordsCache.length) {
+      const res = await fetch(`${API}/records?limit=100`);
+      chatRecordsCache = await res.json();
+    }
+
+    sel.innerHTML = chatRecordsCache.map(r => {
+      const label = `${r.record_id_str || 'REC' + r.id} — ${r.owner_name || 'Unknown'} (${r.village || 'Rampur'})`;
+      return `<option value="${r.id}">${label}</option>`;
+    }).join("");
+
+    if (preferredRecordId) {
+      sel.value = preferredRecordId;
+      activeChatRecordId = parseInt(preferredRecordId);
+    } else if (sel.options.length) {
+      activeChatRecordId = parseInt(sel.value);
+    }
+  } catch (e) {
+    sel.innerHTML = `<option value="">Could not load records</option>`;
+  }
+}
+
+function onChatRecordSelected(id) {
+  activeChatRecordId = parseInt(id);
+  const selectedRec = chatRecordsCache.find(r => r.id === activeChatRecordId);
+  if (selectedRec) {
+    appendChatMessage("System", `Switched target record context to <b>${selectedRec.record_id_str || '#' + selectedRec.id} (${selectedRec.owner_name || 'Record'})</b>.`, false, false);
+  }
+}
+
+function openGeminiChatForRecord(recordId) {
+  const win = document.getElementById("geminiChatWindow");
+  if (win) win.style.display = "flex";
+  loadChatRecordOptions(recordId);
+  setTimeout(() => {
+    document.getElementById("geminiChatInput")?.focus();
+  }, 150);
+}
+
+function sendQuickPrompt(promptText) {
+  const input = document.getElementById("geminiChatInput");
+  if (input) {
+    input.value = promptText;
+    sendGeminiMessage();
+  }
+}
+
+async function sendGeminiMessage() {
+  const input = document.getElementById("geminiChatInput");
+  if (!input) return;
+  const question = input.value.trim();
+  if (!question) return;
+
+  const recordId = activeChatRecordId || parseInt(document.getElementById("geminiRecordSelect")?.value);
+  if (!recordId) {
+    alert("Please select a valid land record from the dropdown first.");
+    return;
+  }
+
+  // Append user bubble
+  appendChatMessage("You", question, false, false);
+  input.value = "";
+
+  // Append typing indicator bubble
+  const body = document.getElementById("geminiChatBody");
+  const typingId = "typing_" + Date.now();
+  const typingEl = document.createElement("div");
+  typingEl.id = typingId;
+  typingEl.className = "chat-bubble bot";
+  typingEl.innerHTML = `<div class="chat-bubble-sender">Gemini AI Assistant</div><div><i>Thinking &amp; cross-referencing record fields…</i></div>`;
+  body.appendChild(typingEl);
+  body.scrollTop = body.scrollHeight;
+
+  try {
+    const res = await fetch(`${API}/records/${recordId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    const typingNode = document.getElementById(typingId);
+    if (typingNode) typingNode.remove();
+
+    if (!res.ok) {
+      const err = await res.text();
+      appendChatMessage("Gemini AI Assistant", `⚠ Error: ${err}`, true, false);
+      return;
+    }
+
+    const data = await res.json();
+    appendChatMessage("Gemini AI Assistant", data.answer, true, data.grounded);
+  } catch (e) {
+    const typingNode = document.getElementById(typingId);
+    if (typingNode) typingNode.remove();
+    appendChatMessage("Gemini AI Assistant", `⚠ Network Error: ${e.message}`, true, false);
+  }
+}
+
+function appendChatMessage(sender, text, isBot, isGrounded) {
+  const body = document.getElementById("geminiChatBody");
+  if (!body) return;
+
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble ${isBot ? 'bot' : 'user'}`;
+
+  let formattedText = (text || "").replace(/\n/g, "<br>");
+  formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+
+  let contentHtml = `<div class="chat-bubble-sender">${sender}</div><div>${formattedText}</div>`;
+  if (isBot && isGrounded) {
+    contentHtml += `<div class="grounded-tag">🛡️ Grounded on Record Metadata &amp; OCR</div>`;
+  }
+
+  bubble.innerHTML = contentHtml;
+  body.appendChild(bubble);
+  body.scrollTop = body.scrollHeight;
+}
+
+// Pre-fetch records for chat on startup
+setTimeout(() => { loadChatRecordOptions(); }, 1200);
+
+// ============================================================
+// UPLOADED RECORDS MINIMAL STATISTICS & SEARCH TABLE
+// ============================================================
+let uploadedRecordsCache = [];
+
+async function loadUploadedRecordsAndStats() {
+  try {
+    const [statsRes, recordsRes] = await Promise.all([
+      fetch(`${API}/dashboard/statistics?source=user_upload`),
+      fetch(`${API}/records?source=user_upload&limit=500`),
+    ]);
+    const stats = await statsRes.json();
+    uploadedRecordsCache = await recordsRes.json();
+
+    renderMinimalStatsTable(stats, uploadedRecordsCache);
+    renderUploadedRecordsTable(uploadedRecordsCache);
+
+    const countBadge = document.getElementById("uploadedTableCount");
+    if (countBadge) countBadge.textContent = `${uploadedRecordsCache.length} Record${uploadedRecordsCache.length === 1 ? '' : 's'}`;
+
+  } catch (e) {
+    console.error("Error loading uploaded records:", e);
+  }
+}
+
+function renderMinimalStatsTable(stats, records) {
+  const container = document.getElementById("minimalStatsTable");
+  if (!container) return;
+
+  if (!records.length) {
+    container.innerHTML = `
+      <div style="padding:16px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:var(--radius-sm); text-align:center; color:#64748b; font-size:13px;">
+        📂 <b>Database is currently clean (0 records).</b> Upload scanned land records (JPG, PNG) or multi-page PDFs above to see real-time statistics and records.
+      </div>
+    `;
+    return;
+  }
+
+  // Extract unique languages and locations from records
+  const langs = Object.keys(stats.language_distribution || {}).map(l => l.charAt(0).toUpperCase() + l.slice(1));
+  const uniqueDistricts = [...new Set(records.map(r => r.district).filter(Boolean))];
+  const uniqueStates = [...new Set(records.map(r => r.state).filter(Boolean))];
+
+  const locationsStr = uniqueDistricts.length
+    ? `${uniqueDistricts.slice(0, 3).join(", ")}${uniqueStates.length ? ` (${uniqueStates.join(", ")})` : ''}`
+    : (records[0]?.village || "—");
+
+  container.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:4px;">
+      <thead>
+        <tr style="background:#f1f5f9; text-align:left; border-bottom:1.5px solid #cbd5e1; color:#475569;">
+          <th style="padding:8px 12px;">Total Uploaded</th>
+          <th style="padding:8px 12px;">Verified / Clean</th>
+          <th style="padding:8px 12px;">Pending Review</th>
+          <th style="padding:8px 12px;">Duplicate Flags</th>
+          <th style="padding:8px 12px;">Avg OCR Confidence</th>
+          <th style="padding:8px 12px;">Detected Languages</th>
+          <th style="padding:8px 12px;">Districts / States</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #e2e8f0; font-weight:600;">
+          <td style="padding:10px 12px; font-size:15px; color:var(--navy);">${stats.total || records.length}</td>
+          <td style="padding:10px 12px; font-size:15px; color:var(--green);">${stats.verified || 0}</td>
+          <td style="padding:10px 12px; font-size:15px; color:var(--orange);">${stats.under_review || stats.pending || 0}</td>
+          <td style="padding:10px 12px; font-size:15px; color:${stats.duplicates > 0 ? 'var(--red)' : '#64748b'};">${stats.duplicates || 0}</td>
+          <td style="padding:10px 12px; font-size:15px; color:#0284c7;">${stats.avg_confidence || 0}%</td>
+          <td style="padding:10px 12px; font-size:12px; color:#334155;">${langs.join(", ") || 'English'}</td>
+          <td style="padding:10px 12px; font-size:12px; color:#334155;">${locationsStr}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function renderUploadedRecordsTable(records) {
+  const tbody = document.getElementById("uploadedRecordsTableBody");
+  if (!tbody) return;
+
+  if (!records.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align:center; padding:24px; color:#888; font-size:13px;">
+          No records found. Upload scanned land record images or PDFs above to start digitizing.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = records.map(r => {
+    const isWarn = !!r.validation_warnings;
+    const isDup = (r.duplicate_status || "") !== "none";
+    const statusLabel = (r.verification_status || "pending").replace(/_/g, " ");
+    const isVerified = ["verified", "published"].includes(r.verification_status);
+
+    const sNo = r.survey_number || r.khasra_no || "—";
+    const father = r.father_name ? `<br><small class="muted">S/o ${r.father_name}</small>` : "";
+    const loc = [r.village, r.district, r.state].filter(Boolean).join(", ") || "—";
+
+    const thumb = r.filename
+      ? `<img src="${API}/uploads/${r.filename}" style="width:42px; height:42px; object-fit:cover; border-radius:4px; border:1px solid #cbd5e1; cursor:pointer;" onclick="openRecordModal(${r.id})" title="Click to inspect">`
+      : `<div style="width:42px; height:42px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:16px;">📄</div>`;
+
+    return `
+      <tr style="border-bottom:1px solid #f1f5f9; font-size:12.5px;">
+        <td style="padding:8px 10px; text-align:center;">${thumb}</td>
+        <td style="padding:8px 10px; font-weight:700; color:var(--navy);">${r.record_id_str || '#' + r.id}</td>
+        <td style="padding:8px 10px; font-weight:600;">${r.owner_name || '—'}${father}</td>
+        <td style="padding:8px 10px;">${sNo}</td>
+        <td style="padding:8px 10px;">${r.khata_no || '—'}</td>
+        <td style="padding:8px 10px;">${r.area_hectare ? `${r.area_hectare} Ha` : '—'}</td>
+        <td style="padding:8px 10px;">${loc}</td>
+        <td style="padding:8px 10px;"><span class="conf-pill ${confClass(r.ocr_confidence || r.overall_confidence)}">${(r.ocr_confidence || r.overall_confidence || 0).toFixed(0)}%</span></td>
+        <td style="padding:8px 10px;">
+          <span class="badge ${isVerified ? 'verified' : (isWarn || isDup ? 'rejected' : 'pending')}" style="font-size:11px;">
+            ${isDup ? '⚠ Duplicate' : (isWarn ? '⚠ Alert' : statusLabel)}
+          </span>
+        </td>
+        <td style="padding:8px 10px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="ghost" style="font-size:11.5px; padding:3px 8px;" onclick="openRecordModal(${r.id})">📋 Details</button>
+            <button class="ghost" style="font-size:11.5px; padding:3px 8px; color:var(--navy); font-weight:600;" onclick="openGeminiChatForRecord(${r.id})">💬 Ask AI</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function filterUploadedTable(query) {
+  const q = (query || "").trim().toLowerCase();
+  const statusFilter = document.getElementById("uploadedStatusFilter")?.value || "all";
+  const langFilter = document.getElementById("uploadedLangFilter")?.value || "all";
+
+  const filtered = uploadedRecordsCache.filter(r => {
+    // Status match
+    if (statusFilter === "pending_review" && !["pending_review", "under_review", "pending"].includes(r.verification_status)) return false;
+    if (statusFilter === "verified" && !["verified", "published"].includes(r.verification_status)) return false;
+    if (statusFilter === "duplicate" && (r.duplicate_status || "") === "none") return false;
+
+    // Language match
+    if (langFilter !== "all" && (r.language || "").toLowerCase() !== langFilter) return false;
+
+    // Query match
+    if (!q) return true;
+    const textCorpus = [
+      r.record_id_str,
+      r.owner_name,
+      r.father_name,
+      r.survey_number,
+      r.khasra_no,
+      r.khata_no,
+      r.village,
+      r.district,
+      r.state,
+      r.document_type
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    return textCorpus.includes(q);
+  });
+
+  renderUploadedRecordsTable(filtered);
+  const countBadge = document.getElementById("uploadedTableCount");
+  if (countBadge) countBadge.textContent = `${filtered.length} of ${uploadedRecordsCache.length} Records`;
+}
+
+async function clearAllUploadedRecords() {
+  if (!confirm("Are you sure you want to clear ALL uploaded land records from the database? This action cannot be undone.")) return;
+  try {
+    const res = await fetch(`${API}/demo/reset`, { method: "POST" });
+    const data = await res.json();
+    uploadedRecordsCache = [];
+    chatRecordsCache = [];
+    sessionBatchRecords = [];
+    const batchCard = document.getElementById("batchResultCard");
+    if (batchCard) batchCard.style.display = "none";
+    const lastCard = document.getElementById("lastResultCard");
+    if (lastCard) lastCard.style.display = "none";
+    loadUploadedRecordsAndStats();
+    if (typeof loadReviewQueue === "function") loadReviewQueue();
+    if (typeof loadDashboard === "function") loadDashboard();
+    if (typeof loadMap === "function") loadMap();
+    alert("Database cleared: 0 records active.");
+  } catch (e) {
+    alert("Error clearing database: " + e.message);
+  }
+}
+
+// Initialize authentication check on page load
+checkAuthOnLoad();
+</script>
+</body>
+</html>

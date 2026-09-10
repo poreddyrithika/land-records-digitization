@@ -1,0 +1,48 @@
+{
+  "edharti_handwritten_01.jpg": {
+    "dataset_style": "e-Dharti (IIIT-HW Devanagari benchmark)",
+    "owner_name": "महेश कुमार यादव",
+    "father_name": "राम लखन यादव",
+    "khasra_no": "512/2",
+    "khata_no": "3401",
+    "area_hectare": "2.65",
+    "village": "रामपुर",
+    "tehsil": "सदर",
+    "district": "मेरठ",
+    "classification": "संक्रमणीय भूमिधर",
+    "mutation_no": "M-8834",
+    "document_type": "Handwritten Record (e-Dharti)",
+    "is_handwritten": true
+  },
+  "bhoomi_handwritten_01.jpg": {
+    "dataset_style": "Bhoomi (PHDIndic_11 Telugu benchmark)",
+    "owner_name": "చంద్రశేఖర్ రెడ్డి",
+    "father_name": "రామకృష్ణారెడ్డి",
+    "survey_number": "184/3B",
+    "khata_no": "2190",
+    "area_hectare": "4.15",
+    "village": "రాంపూర్",
+    "mandal": "చౌటుప్పల్",
+    "district": "యాదాద్రి",
+    "classification": "పట్టా భూమి",
+    "mutation_no": "M-7719",
+    "document_type": "Handwritten Record (Bhoomi)",
+    "is_handwritten": true
+  },
+  "fir_mixed_style_01.jpg": {
+    "dataset_style": "FIR Dataset (Mixed Print+Handwriting benchmark, arXiv:2306.02142)",
+    "owner_name": "Suresh Chandra Tiwari",
+    "father_name": "Kedarnath Tiwari",
+    "survey_number": "620/1",
+    "khasra_no": "620/1",
+    "khata_no": "4918",
+    "area_hectare": "1.92",
+    "village": "Rampur",
+    "tehsil": "Meerganj",
+    "district": "Bareilly",
+    "classification": "Agricultural",
+    "mutation_no": "M-4029",
+    "document_type": "Mixed Print+Handwriting (FIR Style)",
+    "is_handwritten": true
+  }
+}

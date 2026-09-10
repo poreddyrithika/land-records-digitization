@@ -1,0 +1,26 @@
+fastapi
+uvicorn
+python-multipart
+sqlalchemy
+opencv-python-headless
+pytesseract
+pillow
+numpy
+
+# PDF support for legacy land record PDFs
+PyMuPDF
+
+# --- Handwriting OCR (optional — only needed if ENABLE_HANDWRITING_OCR
+# is set to True in main.py). Uncomment and install if you're adding
+# handwriting support. Large download (~1.3GB model weights on first run).
+#
+# IMPORTANT: pin transformers to 4.46.3, NOT the latest version. Testing
+# on Windows + Python 3.13 showed the newest transformers (5.x) fails to
+# load TrOCR's tokenizer entirely (ValueError about backend tokenizer /
+# sentencepiece), because TrOCR's original tokenizer files predate a
+# loading-system change in newer transformers. 4.46.3 has a prebuilt
+# Windows wheel for tokenizers (no Rust/C++ compiler needed) and is
+# confirmed working against microsoft/trocr-base-handwritten.
+# torch
+# transformers==4.46.3
+# sentencepiece

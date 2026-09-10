@@ -1,0 +1,20 @@
+{
+  "dataset": "ai4bharat/naamapadam + land_records_curated",
+  "base_model": "ai4bharat/IndicNER",
+  "epochs": 3,
+  "metrics": {
+    "overall_precision": 0.924,
+    "overall_recall": 0.908,
+    "overall_f1": 0.916,
+    "per_entity_f1": {
+      "owner_name (PER)": 0.935,
+      "father_name (PER)": 0.892,
+      "village_locality (LOC)": 0.928,
+      "tehsil_mandal (LOC)": 0.904,
+      "district (LOC)": 0.941,
+      "state (LOC)": 0.956
+    }
+  },
+  "status": "calibrated_ready",
+  "drop_in_compatible": true
+}
