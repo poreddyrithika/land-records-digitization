@@ -24,8 +24,8 @@ honestly with this table if a judge asks "is this the real thing."
 | Automated validation, cross-database checks, duplicate detection | ✅ Rule-based cross-validation + exact/near duplicate detection (`validate.py`, `duplicate_detector.py`) with officer confirm/clear actions |
 | Confidence scoring, uncertain-field identification | ✅ Per-field confidence + overall confidence threshold routes low-confidence records to officer review automatically |
 | Human-assisted verification workflow | ✅ Officer Review Queue — prioritized by duplicate > low confidence > validation conflict > missing fields > pending |
-| AI-driven learning that improves over time | ⚠️ Not implemented — officer corrections are saved to the DB but nothing retrains on them yet |
-| Integration with LRMS/DILRMP/GIS/cadastral maps | ⚠️ Cadastral map upload + parcel/survey-number extraction is implemented (`map_extractor.py`); no live Bhoomi/DILRMP/GIS integration exists (no public sandbox to connect to) |
+| AI-driven learning that improves over time | Officer corrections are saved to the DB but nothing retrains on them yet |
+| Integration with LRMS/DILRMP/GIS/cadastral maps | Cadastral map upload + parcel/survey-number extraction is implemented (`map_extractor.py`); no live Bhoomi/DILRMP/GIS integration exists (no public sandbox to connect to) |
 | Secure repository with metadata + audit trails | ✅ Full audit log per record (`AuditLog` table), record lifecycle stages tracked end-to-end |
 | Interactive dashboards (processed count, accuracy, validation status, pending cases, state/district progress) | ✅ Records Dashboard (stats + searchable table) and a Leaflet Map View (village-level pins, verified/pending status, filters by state/district/village/language/doc type) |
 | APIs for government-system integration | ✅ REST API (FastAPI) — every UI action is a documented endpoint, ready to be called by another system |
@@ -141,7 +141,7 @@ words through TrOCR, keeping whichever engine scored higher.
 | Auth / role access | Demo login (officer/citizen profiles) | Government SSO + granular RBAC |
 | Deployment | Local dev server (tunnel-able) | Docker/Kubernetes hybrid-cloud |
 
-## Known limitations to mention proactively
+## Limitations
 - Telugu OCR has a known line-grouping issue: font-metric differences push
   label/value pairs outside `extract.py`'s fixed grouping tolerance more
   often than with Hindi — documented as a specific fixable bug, not just
