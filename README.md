@@ -151,4 +151,5 @@ the UI. That's the point to make if a judge asks "is this the real thing."
   not a bug to hide.
 - Only one document layout is supported; a second layout (e.g. a sale deed
   format) would need its own `FIELD_LABELS` schema in `extract.py`.
-- Cross-validation only checks for an existing record with 
+- Cross-validation only checks for an existing record with the same
+  khasra_no + village — no fuzzy/partial matching yet.
